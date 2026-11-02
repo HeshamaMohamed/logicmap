@@ -1,0 +1,20 @@
+{
+  "why": "escaping exceptions map through the exception table and name their class; checks open the code behind them",
+  "fixture": "tests/fixtures/rails-graphql",
+  "unit": "Mutations::Payments::CreatePayment#resolve",
+  "expect": {
+    "exitsInclude": [
+      "NOT_FOUND",
+      "FORBIDDEN",
+      "VALIDATION_ERRORS"
+    ],
+    "callsInclude": [
+      "AccessPolicy.permitted?",
+      "Payment@validations"
+    ],
+    "raisesInclude": [
+      "ActiveRecord::RecordNotFound",
+      "Pundit::NotAuthorizedError"
+    ]
+  }
+}

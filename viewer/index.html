@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Decision graph</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="viewer.css">
+<script src="https://cdn.jsdelivr.net/npm/roughjs@4.6.6/bundled/rough.js"></script>
+</head>
+<body>
+<svg id="canvas" aria-label="Decision graph"><g id="world"></g></svg>
+
+<div class="topbar">
+  <div class="island picker">
+    <select id="ep-select" aria-label="Entry point"></select>
+    <div id="codebase" class="codebase"></div>
+  </div>
+  <div id="toolbar" class="island toolbar"></div>
+</div>
+
+<div class="island zoom">
+  <button id="zoom-out" aria-label="Zoom out">−</button>
+  <button id="zoom-reset" aria-label="Reset zoom">100%</button>
+  <button id="zoom-in" aria-label="Zoom in">+</button>
+  <button id="zoom-fit">Fit</button>
+</div>
+
+<aside id="panel" class="island panel"></aside>
+<button id="panel-open" class="island panel-open" hidden>Details</button>
+<div id="fatal"></div>
+
+<script type="module" src="viewer.js"></script>
+</body>
+</html>

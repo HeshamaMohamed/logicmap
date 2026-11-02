@@ -1,0 +1,8 @@
+{
+  "$comment": "A sample for a codebase with its own GraphQL conventions, like tests/fixtures/rails-graphql. Copy it to your codebase's root as .logicmap.json and change it to fit.",
+  "context": [
+    "Mutation results: success(...) returns the result, a success outcome you name; failure(record) returns the record's validation errors, VALIDATION_ERRORS."
+  ],
+  "skipCalls": ["#log_access$", "^Rails\\.logger"],
+  "guardDsl": ["guard"]
+}

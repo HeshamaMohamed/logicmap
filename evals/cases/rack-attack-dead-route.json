@@ -1,0 +1,6 @@
+{
+  "why": "a middleware rule for a path no route serves gets a note; a throttle that refuses requests is an exit",
+  "fixture": "tests/fixtures/rails-graphql",
+  "unit": "init:rack_attack.rb",
+  "expect": { "minExits": 1, "notesMatch": ["/v1/login"] }
+}

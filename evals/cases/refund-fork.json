@@ -1,0 +1,6 @@
+{
+  "why": "if/else paths doing different work form a fork; the writes sit inside a transaction",
+  "fixture": "tests/fixtures/rails-graphql",
+  "unit": "Mutations::Payments::RefundPayment#resolve",
+  "expect": { "minForks": 1, "notesAvoid": ["without a transaction", "no transaction", "not (wrapped|inside|in) a transaction"] }
+}

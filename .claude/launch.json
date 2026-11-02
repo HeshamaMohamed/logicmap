@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "viewer",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["extractor/cli.mjs", "view"],
+      "port": 8765
+    }
+  ]
+}

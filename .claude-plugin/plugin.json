@@ -1,0 +1,7 @@
+{
+  "name": "logicmap",
+  "version": "0.1.0",
+  "description": "Review the decisions a Ruby codebase makes, PR by PR or feature by feature, as an expandable decision diagram",
+  "author": { "name": "Hesham Mohamed" },
+  "license": "MIT"
+}

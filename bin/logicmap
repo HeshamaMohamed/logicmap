@@ -1,0 +1,4 @@
+#!/bin/sh
+# Runs the extractor from wherever this repo lives, symlinks included.
+here=$(cd "$(dirname "$0")" && pwd -P)
+exec node "$here/../extractor/cli.mjs" "$@"

@@ -1,0 +1,11 @@
+{
+  "name": "logicmap",
+  "description": "The logicmap skill and framework as a Claude Code plugin",
+  "owner": { "name": "Hesham Mohamed" },
+  "plugins": [
+    {
+      "name": "logicmap",
+      "source": "./"
+    }
+  ]
+}

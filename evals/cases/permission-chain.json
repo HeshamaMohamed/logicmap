@@ -1,0 +1,6 @@
+{
+  "why": "a helper's early returns are decisions with returns, one question each",
+  "fixture": "tests/fixtures/rails-graphql",
+  "unit": "AccessPolicy#permitted?",
+  "expect": { "minReturns": 3, "minQuestions": 3 }
+}
