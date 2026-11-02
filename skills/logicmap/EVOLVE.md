@@ -1,6 +1,6 @@
 # Evolve loop
 
-A **gap** is a case the framework does not support yet: a coded error, a changed line the graph leaves out, or a node that misstates its code. Each pass through this loop ends with the gap supported and a test guarding it; this is how the framework grows. It grows for every Ruby codebase.
+A **gap** is a case the framework does not support yet: a coded error, a changed line the graph leaves out, or a node that misstates its code. Each pass through this loop ends with the gap supported and a test guarding it; this is how the framework grows. It grows for every codebase in a language that has a pack.
 
 Work in the framework repo, `ROOT`. Every agent-facing text you write or edit (prompts, remedies, skills, `AGENTS.md`) follows `ROOT/vendor/writing-for-agents/SKILL.md`. Every reader text (anything the diagram shows) follows `vendor/asd-ste100/SKILL.md` and `vendor/humanizer/SKILL.md` in this skill.
 

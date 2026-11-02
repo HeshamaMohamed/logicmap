@@ -13,7 +13,7 @@ ROOT="$(cd "<this skill's base directory>" && pwd -P)/../.."
 
 The CLI is `"$ROOT/bin/logicmap"`; `--help` lists its options. Every run writes `last-run.json` in the cache folder (`$LOGICMAP_CACHE`, else `~/.cache/logicmap`) with the status, the error code, the plan, the graph path and the coverage: read it after each run. Every text on the diagram is **reader text**, checked against the vendored asd-ste100 and humanizer rules before a graph is written.
 
-A codebase's own conventions (its own guard DSL or result helpers, where its code lives, the entry points of a plain Ruby codebase) live in `.logicmap.json` at its root. `$ROOT/README.md` lists the keys.
+A codebase's own conventions (its own guard DSL or result helpers, where its code lives, the entry points of a plain Ruby or TypeScript codebase) live in `.logicmap.json` at its root. `$ROOT/README.md` lists the keys.
 
 ## Steps
 
