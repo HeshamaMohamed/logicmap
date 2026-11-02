@@ -177,3 +177,7 @@ Rules:
   listed in `coverage`.
 - **An unknown reference is an error.** `lib/validate.mjs` refuses the whole graph.
 
+
+## License
+
+MIT, in `LICENSE`. Each vendored skill keeps its own MIT license in its folder.
