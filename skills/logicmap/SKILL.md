@@ -27,6 +27,7 @@ A codebase's own conventions (its own guard DSL or result helpers, where its cod
    - `BAD_ARGUMENT`, `UNKNOWN_ENTRY`, `NOT_A_COMMIT`, `TOO_MANY_AFFECTED`, `NO_ENTRIES`: the command needs changing; follow the printed remedy and rerun.
    - `PRISM_MISSING`, `PYTHON_MISSING`: the machine needs a tool; the remedy names it.
    - `CONFIG_INVALID`: the codebase's `.logicmap.json` needs fixing; the message names the key.
+   - `UNSUPPORTED_LANGUAGE`: no language pack reads this codebase yet. Tell the user which languages have a pack (the message lists them), and stop.
    - `CLAUDE_FAILED`: rerun once, then hand a second failure to the user.
    - Every other code is a **gap**: run [EVOLVE.md](EVOLVE.md), then rerun this step.
 3. **Show.** Start `"$ROOT/bin/logicmap" view` in the background when nothing serves port 8765, and open the `View:` URL the run printed. A link to one decision appends `&focus=<node id>` after `#ep=<entry point>`.

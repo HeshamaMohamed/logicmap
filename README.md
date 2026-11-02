@@ -12,12 +12,15 @@ diamond is a decision. Each colored box at the side is a way the request can end
 panel lists every ending and the notes that a reviewer should read.
 
 It runs on any PR, commit or feature of any Ruby codebase (Rails with graphql-ruby,
-plain Rails, or plain Ruby), and grows: every case it can't handle yet fails loudly,
+plain Rails, or plain Ruby). Each language is a pack in `extractor/languages/`, and
+Ruby is the first one. `CONTRIBUTING.md` shows how to add a language. It also
+grows: every case it can't handle yet fails loudly,
 is recorded in `gaps/`, and is closed with a test (see `CONTRIBUTING.md`).
 
 ```
 skills/logicmap/         the agent skill: plan, extract, show, report, evolve
 extractor/               reads a codebase, writes a decision graph
+extractor/languages/     one pack per language: its parser, call lookup and framework adapters
 viewer/                  the diagram
 lib/                     what a valid graph is, and how its exits roll up (shared by extractor and viewer)
 gaps/                    every case found unsupported, one file each, and how it was closed
@@ -80,7 +83,7 @@ viewer loads rough.js and Excalifont from cdn.jsdelivr.net.
 
 ## A codebase's own conventions: `.logicmap.json`
 
-The framework reads what many Ruby codebases share. What only one codebase does goes
+The framework reads what many codebases of a language share. What only one codebase does goes
 in `.logicmap.json` at its root (or `--config FILE`). Every key is optional; an
 unknown key is refused.
 
@@ -89,8 +92,8 @@ unknown key is refused.
 | `sourcePaths` | paths the index reads (default `app`, `lib`, `config/routes.rb`, `config/initializers`) |
 | `context` | lines about the codebase's own conventions, added to every prompt (its result helpers, for example) |
 | `skipCalls` | regular expressions: a method id that matches is never offered for opening (logging, analytics) |
-| `guardDsl` | class-level methods whose symbol argument names a guard of a GraphQL operation (default `guard`) |
-| `entryPoints` | method id patterns, `*` as a wildcard, that are the entry points of a plain Ruby codebase |
+| `guardDsl` | Ruby only: class-level methods whose symbol argument names a guard of a GraphQL operation (default `guard`) |
+| `entryPoints` | method id patterns, `*` as a wildcard, that are the entry points when no framework adapter applies (plain Ruby) |
 | `fieldDepth`, `maxEntries`, `model`, `effort` | defaults for the flags of the same name |
 
 `examples/rails-graphql.logicmap.json` is a sample for a codebase with its own result
@@ -98,10 +101,13 @@ helpers and guard DSL.
 
 ## How it works
 
-1. **Index** (`extractor/ruby/index.rb`). Prism parses the source paths: classes,
+1. **Language** (`extractor/languages/`). The first pack that recognises the codebase
+   reads it. The Ruby pack looks for a Gemfile, a gemspec or a Ruby file. A codebase
+   that no pack recognises stops with `UNSUPPORTED_LANGUAGE`.
+2. **Index** (`extractor/languages/ruby/index.rb`). Prism parses the source paths: classes,
    modules, includes, methods with their lines, calls, visibility and rescues,
    class-body declarations, constants, routes and rake tasks.
-2. **Entry points** (`extractor/adapters/`), first adapter that recognises the
+3. **Entry points** (`extractor/languages/ruby/adapters/`), first adapter that recognises the
    codebase:
    - `rails-graphql`: a GraphQL::Schema class. Every mutation and resolver class and
      every inline field of a root type: middleware, the routed action that runs the
@@ -113,18 +119,18 @@ helpers and guard DSL.
      Action Cable channel method, every job and every rake task; Rack middleware from
      config/initializers runs first for HTTP requests.
    - `ruby`: every public method, or the ones `entryPoints` names.
-3. **Affected** (`extractor/affected.mjs`). For a change, a static call graph finds
+4. **Affected** (`extractor/affected.mjs`). For a change, a static call graph finds
    the entry points that reach the changed methods and declarations, nearest first.
-4. **Units** (`extractor/extract.mjs`). One Claude call per method, or per class-body
+5. **Units** (`extractor/extract.mjs`). One Claude call per method, or per class-body
    declaration group, with the numbered source, the methods it may open and the
    outcome codes. Each answer is checked, including every text a reader sees
    (against the vendored STE linter and the humanizer patterns), and sent back with
    the reasons when it fails, up to 3 attempts. The methods it opens become units of
    their own, so shared code is extracted once.
-5. **Assemble** (`extractor/assemble.mjs`). Units become nodes; hand-off wrappers fold
+6. **Assemble** (`extractor/assemble.mjs`). Units become nodes; hand-off wrappers fold
    into what they hand off to; recursion is cut and named; the graph must pass
    `lib/validate.mjs`.
-6. **Change** (`extractor/change.mjs`). The diff marks the most specific nodes it
+7. **Change** (`extractor/change.mjs`). The diff marks the most specific nodes it
    touches, directly or through a constant or a method the graph does not open;
    everything else it touches becomes the graph's `coverage`, with a reason.
 

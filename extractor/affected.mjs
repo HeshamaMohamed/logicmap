@@ -17,18 +17,6 @@ function unitsAt(index, resolver, hunk) {
   return ids;
 }
 
-// A constant read inside a method refers to a definition when the full path
-// matches, or when a bare name is defined in the method's class, an enclosing
-// module, or an ancestor.
-function readsConstant(method, def, resolver) {
-  const full = `${def.owner}::${def.name}`;
-  return (method.consts || []).filter((read) => {
-    if (read.name.includes("::")) return full.endsWith(read.name.replace(/^::/, ""));
-    if (read.name !== def.name) return false;
-    return method.owner === def.owner || method.owner.startsWith(`${def.owner}::`) || resolver.ancestors(method.owner).includes(def.owner);
-  }).map((read) => read.line);
-}
-
 function constantsAt(index, hunk) {
   return (index.constant_defs || []).filter((c) => c.file === hunk.file && c.start <= hunk.end && c.end >= hunk.start);
 }
@@ -43,7 +31,7 @@ export function changedUnits(index, resolver, change) {
   for (const hunk of change.hunks) {
     unitsAt(index, resolver, hunk).forEach((id) => add(id, hunk));
     for (const def of constantsAt(index, hunk)) {
-      for (const m of Object.values(index.methods)) if (readsConstant(m, def, resolver).length) add(m.id, hunk);
+      for (const m of Object.values(index.methods)) if (resolver.readsConstant(m, def).length) add(m.id, hunk);
     }
   }
   return units;
@@ -89,7 +77,7 @@ export function markIndirect({ graph, ranges, unmatched, index, resolver, source
     for (const [uid, steps] of stepsByUnit) {
       const m = index.methods[uid];
       if (!m) continue;
-      const lines = new Set(defs.flatMap((def) => readsConstant(m, def, resolver)));
+      const lines = new Set(defs.flatMap((def) => resolver.readsConstant(m, def)));
       if (unopened.size) {
         for (const t of targetsOf(uid)) {
           if (reachesUnopened(t.id)) t.lines.filter(Boolean).forEach((l) => lines.add(l));
@@ -126,7 +114,7 @@ export function stepRoots(ep) {
   const ids = (s) => {
     if (s.fields) return s.fields.map((f) => f.method);
     if (s.fork) return [...s.fork.then, ...s.fork.otherwise].flatMap(ids);
-    return s.gem ? [] : [s.node || s.inline];
+    return s.external ? [] : [s.node || s.inline];
   };
   return ep.steps.flatMap(ids);
 }
@@ -162,38 +150,34 @@ export function affectedEntries(entries, calls, changed) {
   return { affected, unreached: [...changed.keys()].filter((id) => !reachedChanged.has(id)) };
 }
 
-const STRUCTURE = new Set(["include", "extend", "prepend", "private", "protected", "public", "module_function", "private_constant"]);
-
 // Every changed hunk the graph leaves out, with the reason a reviewer needs.
-export function uncoveredChanges({ unmatched, index, resolver, extracted, sourceDirs, source, folded = new Set(), explainConstant = () => null }) {
+// The language pack's coverage rules answer what only its language knows.
+export function uncoveredChanges({ unmatched, index, resolver, language, extracted, sourceDirs, source, folded = new Set(), explainConstant = () => null }) {
+  if (!language) throw new Error("uncoveredChanges: the language pack is required");
+  const { coverage } = language;
   return unmatched.map((hunk) => {
-    const indexed = sourceDirs.some((p) => hunk.file === p || hunk.file.startsWith(`${p}/`)) && /\.(rb|rake)$/.test(hunk.file);
-    if (/^(spec|test)\//.test(hunk.file)) return { where: where(hunk), reason: COPY.testCode };
-    if (/^config\/locales\//.test(hunk.file)) return { where: where(hunk), reason: COPY.translations };
-    if (/^db\/migrate\//.test(hunk.file)) return { where: where(hunk), reason: COPY.migration };
-    if (/^db\/(schema\.rb|structure\.sql)$/.test(hunk.file)) return { where: where(hunk), reason: COPY.schemaDump };
-    if (!indexed) return { where: where(hunk), reason: COPY.outsideIndex(sourceDirs.join(", ")) };
-    if (/^config\/initializers\//.test(hunk.file) && !unitsAt(index, resolver, hunk).length) return { where: where(hunk), reason: COPY.startupSetting };
-    const lines = source ? source(hunk.file).slice(hunk.start - 1, hunk.end) : [];
-    if (lines.length && lines.every((l) => /^\s*(#.*)?$/.test(l))) return { where: where(hunk), reason: COPY.onlyComments };
+    const at = where(hunk);
+    const byFile = coverage.fileReason(hunk.file);
+    if (byFile) return { where: at, reason: byFile };
+    const indexed = sourceDirs.some((p) => hunk.file === p || hunk.file.startsWith(`${p}/`)) && coverage.isSource(hunk.file);
+    if (!indexed) return { where: at, reason: COPY.outsideIndex(language.label, sourceDirs.join(", ")) };
     const ids = unitsAt(index, resolver, hunk);
+    const lines = source ? source(hunk.file).slice(hunk.start - 1, hunk.end) : [];
+    const byLines = coverage.lineReason({ hunk, lines, unitIds: ids });
+    if (byLines) return { where: at, reason: byLines };
     if (!ids.length) {
       const defs = constantsAt(index, hunk);
       if (defs.length) {
-        const names = defs.map((d) => `${d.owner}::${d.name}`);
+        const names = defs.map((d) => resolver.constantId(d));
         const explained = names.map(explainConstant).find(Boolean);
-        return { where: where(hunk), reason: explained || COPY.constantUnread(names.join(", ")) };
+        return { where: at, reason: explained || COPY.constantUnread(names.join(", ")) };
       }
-      const owners = Object.values(index.modules);
-      const decls = owners.flatMap((m) => m.declarations).filter((d) => d.file === hunk.file && d.start <= hunk.end && d.end >= hunk.start);
-      const names = [...new Set(decls.map((d) => d.name))];
-      if (names.length && names.every((n) => STRUCTURE.has(n))) return { where: where(hunk), reason: COPY.structure };
-      return { where: where(hunk), reason: names.length ? COPY.classBody(names.join(", ")) : COPY.classBodyCode };
+      return { where: at, reason: coverage.bodyReason({ hunk, index }) };
     }
     const foldedIds = ids.filter((id) => folded.has(id));
-    if (foldedIds.length) return { where: where(hunk), reason: COPY.foldedInto(foldedIds.join(", ")) };
+    if (foldedIds.length) return { where: at, reason: COPY.foldedInto(foldedIds.join(", ")) };
     const inGraph = ids.filter((id) => extracted.has(id));
-    if (inGraph.length) return { where: where(hunk), reason: COPY.betweenSteps(inGraph.join(", ")) };
-    return { where: where(hunk), reason: COPY.unreached(ids.join(", ")) };
+    if (inGraph.length) return { where: at, reason: COPY.betweenSteps(inGraph.join(", ")) };
+    return { where: at, reason: COPY.unreached(ids.join(", ")) };
   });
 }

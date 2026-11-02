@@ -2,7 +2,7 @@
 // know. Its entry points are its public methods, or the ones the codebase's
 // `.logicmap.json` names in entryPoints.
 
-import { methodPattern } from "../config.mjs";
+import { methodPattern } from "../../../config.mjs";
 import { COPY } from "../copy.mjs";
 
 export const NAME = "ruby";

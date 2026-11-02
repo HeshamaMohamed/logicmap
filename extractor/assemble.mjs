@@ -90,9 +90,9 @@ export function assemble({ codebase, adapter, entries, units, stubs, index }) {
     }
   }
 
-  const gemNode = (name) => {
-    const id = `gem:${name}`;
-    nodes[id] = { text: COPY.gemStep(name), detail: COPY.gemDetail };
+  // A step whose code the codebase does not hold (a library's): drawn by the text the adapter gives.
+  const externalNode = ({ id, text, detail }) => {
+    nodes[id] = { text, detail };
     return id;
   };
   const entryPoints = entries.map((ep) => ({
@@ -103,10 +103,10 @@ export function assemble({ codebase, adapter, entries, units, stubs, index }) {
     summary: ep.summary || units.get(ep.method)?.output.summary,
     steps: ep.steps.flatMap((s) => {
       if (s.node) return [drawnAs(s.node)];
-      if (s.gem) return [gemNode(s.gem)];
+      if (s.external) return [externalNode(s.external)];
       if (s.fork) {
         const id = `${ep.id}@if:${s.fork.name}`;
-        const side = (steps) => steps.map((x) => (x.gem ? gemNode(x.gem) : drawnAs(x.node)));
+        const side = (steps) => steps.map((x) => (x.external ? externalNode(x.external) : drawnAs(x.node)));
         nodes[id] = {
           text: COPY.filterFork(s.fork.name),
           question: COPY.filterQuestion(s.fork.name),
@@ -119,7 +119,7 @@ export function assemble({ codebase, adapter, entries, units, stubs, index }) {
       }
       if (s.fields) {
         const id = `${ep.id}@fields`;
-        nodes[id] = { text: COPY.fieldsText, detail: COPY.fieldsDetail, steps: [...new Set(s.fields.map((f) => drawnAs(f.method)))] };
+        nodes[id] = { text: s.text, detail: s.detail, steps: [...new Set(s.fields.map((f) => drawnAs(f.method)))] };
         for (const f of s.fields) if (!nodes[drawnAs(f.method)]) problems.push({ code: "GRAPH_INVALID", message: `entry point ${ep.id}: field method ${f.method} was not extracted` });
         return [id];
       }
