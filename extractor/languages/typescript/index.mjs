@@ -2,13 +2,15 @@
 // every function, method and inline handler with its lines and its calls (the
 // type checker resolves them where it can), try/catch ranges, module-level
 // constants and the constants each function reads, type declarations, and the
-// top-level registration calls (app.get("/x", handler)) the adapters read.
+// registration calls the adapters read (app.get("/x", handler)): every one at
+// the top level of a file, and inside functions every one made on a framework
+// instance (see `receivers` below).
 //
 // Ids: "<module>:<name>" for a module's functions ("src.routes.health:healthCheck"),
 // "<module>:<Class>#<method>" and "<module>:<Class>.<static>" for a class,
 // "<module>:<object>.<key>" for the functions of an object literal, and
-// "<module>:<callee>@<line>" for a function passed inline to a top-level call
-// ("src.routes.orders:ordersRouter.post@13"). <module> is the file's path
+// "<module>:<callee>@<line>" for a function passed inline to a registration
+// call ("src.routes.orders:ordersRouter.post@13"). <module> is the file's path
 // without its extension, with dots for slashes.
 
 import { createRequire } from "node:module";
@@ -78,7 +80,12 @@ function compilerOptions(ts, root) {
   return { ...parsed.options, allowJs: true, checkJs: false, noEmit: true, skipLibCheck: true, types: [] };
 }
 
-export function indexTypescript({ root, paths }) {
+// receivers: what makes a call inside a function a registration, from the
+// adapters: { init: [RegExp] } for the factory call that makes an instance
+// (express(), Fastify()), { paramType: [RegExp] } for a parameter typed as one
+// (FastifyInstance), and { plugin: [method] } for the methods whose function
+// argument receives the instance as its first parameter (register).
+export function indexTypescript({ root, paths, receivers = { init: [], paramType: [], plugin: [] } }) {
   const ts = loadTypescript();
   const files = sourceFiles(root, paths);
   const program = ts.createProgram(files.map((f) => join(root, f)), compilerOptions(ts, root));
@@ -93,6 +100,11 @@ export function indexTypescript({ root, paths }) {
   const ctorByClass = new Map();
   const constByDecl = new Map();
   const exportedDecls = new Set();
+  const unitIds = new Map();
+  const handoffs = [];
+  const receiverIds = new Set();
+  const recorded = new Set();
+  let queue = null;
 
   const isFunction = (n) => n && (ts.isArrowFunction(n) || ts.isFunctionExpression(n));
   const literalish = (n) => n && (ts.isStringLiteral(n) || ts.isNumericLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateExpression(n)
@@ -110,6 +122,96 @@ export function indexTypescript({ root, paths }) {
     }
     return sym;
   };
+  const flat = (n) => n.getText(n.getSourceFile()).replace(/\s+/g, "");
+  const moduleOfFile = (file) => moduleOf(relative(root, file.fileName).split("\\").join("/"));
+
+  // A unit once per function node. Units made while bodies are scanned join the scan.
+  function makeUnit(u, sf, rel) {
+    if (unitByDecl.has(u.fn)) return unitByDecl.get(u.fn);
+    const line = (pos) => sf.getLineAndCharacterOfPosition(pos).line + 1;
+    let id = u.id;
+    for (let k = 2; unitIds.has(id); k++) id = `${u.id}.${k}`;
+    const unit = { ...u, id, file: rel, sf, start: line(u.fn.getStart(sf)), end: line(u.fn.end) };
+    units.push(unit);
+    unitIds.set(id, unit);
+    unitByDecl.set(u.fn, id);
+    if (u.decl) unitByDecl.set(u.decl, id);
+    if (queue) queue.push(unit);
+    return id;
+  }
+
+  // The instance a registration is made on: a variable, or a unit's parameter.
+  // `known` says it is a framework instance by its factory call, its type, or a hand-off.
+  function receiverOf(node) {
+    if (!ts.isIdentifier(node)) return null;
+    const d = (resolve(node)?.declarations || [])[0];
+    if (d && ts.isVariableDeclaration(d) && ts.isIdentifier(d.name)) {
+      const id = `${moduleOfFile(d.getSourceFile())}:${d.name.text}`;
+      const init = d.initializer ? flat(d.initializer).replace(/^await/, "").slice(0, 80) : null;
+      return { id, init, known: receiverIds.has(id) || receivers.init.some((re) => re.test(init || "")) };
+    }
+    if (d && ts.isParameter(d) && unitByDecl.has(d.parent)) {
+      const id = `${unitByDecl.get(d.parent)}(${d.parent.parameters.indexOf(d)})`;
+      const type = d.type ? flat(d.type) : null;
+      return { id, type, known: receiverIds.has(id) || receivers.paramType.some((re) => re.test(type || "")) };
+    }
+    return null;
+  }
+
+  // The codebase function a call runs, or null.
+  function calledUnit(call) {
+    const callee = call.expression;
+    const nameNode = ts.isIdentifier(callee) ? callee : ts.isPropertyAccessExpression(callee) ? callee.name : null;
+    if (!nameNode || !ts.isIdentifier(nameNode)) return null;
+    return (resolve(nameNode)?.declarations || []).map((d) => unitByDecl.get(d)).find(Boolean) || null;
+  }
+
+  const markReceiver = (id) => {
+    if (receiverIds.has(id)) return;
+    receiverIds.add(id);
+    // A unit scanned before it was known to receive an instance is scanned again.
+    const unit = unitIds.get(id.replace(/\(\d+\)$/, ""));
+    if (unit && queue && unit.scanned) {
+      unit.scanned = false;
+      queue.push(unit);
+    }
+  };
+
+  // A call on an instance, such as app.get("/x", handler): its function
+  // arguments, also inside an options object or a list, become units, and the
+  // call is recorded for the adapters. At the top level of a file every such
+  // call counts; inside a function, only one on a known instance.
+  function registrationAt(call, sf, rel, topLevel) {
+    if (recorded.has(call)) return;
+    const mod = moduleOf(rel);
+    const line = (pos) => sf.getLineAndCharacterOfPosition(pos).line + 1;
+    const callee = flat(call.expression);
+    const calleeId = callee.replace(/[^\w.$]/g, "_");
+    const onInstance = ts.isPropertyAccessExpression(call.expression);
+    const receiver = onInstance ? receiverOf(call.expression.expression) : null;
+    if (!topLevel && !receiver?.known) return;
+    recorded.add(call);
+    const inline = (fn, key, docNode) => makeUnit({ id: `${mod}:${calleeId}@${line(fn.getStart(sf))}`, name: `${callee} ${key}`, owner: mod, fn, decl: null, docNode, exported: false, visibility: "public", kind: "inline" }, sf, rel);
+    for (const a of call.arguments) {
+      if (isFunction(a)) inline(a, "handler", call);
+      else if (ts.isArrayLiteralExpression(a)) a.elements.filter(isFunction).forEach((fn) => inline(fn, "handler", call));
+      else if (ts.isObjectLiteralExpression(a)) {
+        for (const p of a.properties) {
+          const key = p.name?.getText(sf) || "handler";
+          if (ts.isMethodDeclaration(p)) inline(p, key, p);
+          else if (ts.isPropertyAssignment(p) && isFunction(p.initializer)) inline(p.initializer, key, p);
+          else if (ts.isPropertyAssignment(p) && ts.isArrayLiteralExpression(p.initializer)) p.initializer.elements.filter(isFunction).forEach((fn) => inline(fn, key, p));
+        }
+      }
+    }
+    if (!onInstance) return;
+    registrations.push({ call, sf, rel });
+    // A plugin: the function it registers receives the instance as its first parameter.
+    if (receivers.plugin.includes(call.expression.name.text) && call.arguments[0]) {
+      const plugin = unitByDecl.get(call.arguments[0]) || (ts.isIdentifier(call.arguments[0]) ? (resolve(call.arguments[0])?.declarations || []).map((d) => unitByDecl.get(d)).find(Boolean) : null);
+      if (plugin) markReceiver(`${plugin}(0)`);
+    }
+  }
 
   for (const rel of files) {
     const sf = program.getSourceFile(join(root, rel));
@@ -131,15 +233,7 @@ export function indexTypescript({ root, paths }) {
       (exp.declarations || []).forEach((d) => exportedDecls.add(d));
     }
 
-    const addUnit = (u) => {
-      let id = u.id;
-      for (let k = 2; methods[id] || units.some((x) => x.id === id); k++) id = `${u.id}.${k}`;
-      const unit = { ...u, id, file: rel, sf, start: line(u.fn.getStart(sf)), end: line(u.fn.end) };
-      units.push(unit);
-      unitByDecl.set(u.fn, id);
-      if (u.decl) unitByDecl.set(u.decl, id);
-      return id;
-    };
+    const addUnit = (u) => makeUnit(u, sf, rel);
     const exported = (...nodes) => nodes.some((n) => n && exportedDecls.has(n));
 
     for (const stmt of sf.statements) {
@@ -196,14 +290,7 @@ export function indexTypescript({ root, paths }) {
         const kind = ts.isEnumDeclaration(stmt) ? "enum" : ts.isInterfaceDeclaration(stmt) ? "interface" : "type";
         modules[mod].declarations.push({ name: kind, file: rel, start: line(stmt.getStart(sf)), end: line(stmt.end), source: firstLine(stmt) });
       } else if (ts.isExpressionStatement(stmt) && ts.isCallExpression(stmt.expression)) {
-        // A top-level call such as app.get("/x", handler): its function arguments are units.
-        const call = stmt.expression;
-        const callee = call.expression.getText(sf).replace(/\s+/g, "");
-        const calleeId = callee.replace(/[^\w.$]/g, "_");
-        call.arguments.forEach((a) => {
-          if (isFunction(a)) addUnit({ id: `${mod}:${calleeId}@${line(a.getStart(sf))}`, name: `${callee} handler`, owner: mod, fn: a, decl: null, docNode: stmt, exported: false, visibility: "public", kind: "inline" });
-        });
-        if (ts.isPropertyAccessExpression(call.expression)) registrations.push({ stmt: call, sf, mod, rel });
+        registrationAt(stmt.expression, sf, rel, true);
       } else if (ts.isExpressionStatement(stmt) && ts.isBinaryExpression(stmt.expression) && stmt.expression.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
         // CommonJS: module.exports = function ..., exports.name = (...) => ...
         const left = stmt.expression.left.getText(sf);
@@ -213,6 +300,34 @@ export function indexTypescript({ root, paths }) {
       }
     }
   }
+
+  // Every unit's body, for registrations on known instances and for hand-offs:
+  // a codebase function called with an instance receives it as that parameter.
+  queue = [...units];
+  while (queue.length) {
+    const u = queue.shift();
+    if (u.scanned) continue;
+    u.scanned = true;
+    const visit = (n) => {
+      if (n !== u.fn && unitByDecl.has(n) && unitIds.get(unitByDecl.get(n))?.fn === n) return;
+      if (ts.isCallExpression(n)) {
+        if (ts.isPropertyAccessExpression(n.expression)) registrationAt(n, u.sf, u.file, false);
+        const target = calledUnit(n);
+        if (target) {
+          n.arguments.forEach((a, i) => {
+            const r = receiverOf(a);
+            if (!r?.known) return;
+            const to = `${target}(${i})`;
+            if (!handoffs.some((h) => h.from === r.id && h.to === to)) handoffs.push({ from: r.id, to });
+            markReceiver(to);
+          });
+        }
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(u.fn);
+  }
+  queue = null;
 
   // Calls, constant reads and try/catch ranges of each unit's own code.
   const unitNodes = new Set(units.map((u) => u.fn));
@@ -268,8 +383,50 @@ export function indexTypescript({ root, paths }) {
     methods,
     modules,
     constant_defs: constantDefs,
-    registrations: registrations.map((r) => registration(ts, checker, r, unitByDecl, resolve)),
+    registrations: registrations.map(registrationRecord).sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line),
+    handoffs,
   };
+
+  // A recorded call as data: the instance it is made on, and each argument as
+  // a string, a codebase function, a variable, a call to library code, an
+  // options object or a list.
+  function registrationRecord({ call, sf, rel }) {
+    const line = (pos) => sf.getLineAndCharacterOfPosition(pos).line + 1;
+    const arg = (a) => {
+      if (ts.isStringLiteral(a) || ts.isNoSubstitutionTemplateLiteral(a)) return { kind: "string", value: a.text };
+      const own = unitByDecl.get(a);
+      if (own) return { kind: "unit", id: own };
+      if (ts.isArrayLiteralExpression(a)) return { kind: "array", items: a.elements.map(arg) };
+      if (ts.isObjectLiteralExpression(a)) {
+        const props = {};
+        for (const p of a.properties) {
+          if (ts.isPropertyAssignment(p)) props[p.name.getText(sf)] = arg(p.initializer);
+          else if (ts.isShorthandPropertyAssignment(p)) props[p.name.text] = arg(p.name);
+          else if (ts.isMethodDeclaration(p)) props[p.name.getText(sf)] = { kind: "unit", id: unitByDecl.get(p) };
+        }
+        return { kind: "object", props };
+      }
+      if (ts.isIdentifier(a) || ts.isPropertyAccessExpression(a)) {
+        const nameNode = ts.isPropertyAccessExpression(a) ? a.name : a;
+        const unit = (resolve(nameNode)?.declarations || []).map((d) => unitByDecl.get(d)).find(Boolean);
+        if (unit) return { kind: "unit", id: unit };
+        const v = receiverOf(nameNode);
+        if (v) return { kind: "var", id: v.id, init: v.init ?? null };
+      }
+      if (ts.isCallExpression(a)) return { kind: "call", text: a.getText(sf).replace(/\s+/g, " ").slice(0, 80) };
+      return { kind: "other", text: a.getText(sf).replace(/\s+/g, " ").slice(0, 80) };
+    };
+    const target = call.expression;
+    const receiver = receiverOf(target.expression);
+    return {
+      file: rel,
+      module: moduleOf(rel),
+      line: line(call.getStart(sf)),
+      method: target.name.text,
+      receiver: { text: flat(target.expression), ...(receiver ? { id: receiver.id, init: receiver.init ?? null, type: receiver.type ?? null } : {}) },
+      args: call.arguments.map(arg),
+    };
+  }
 }
 
 // The comment just above a statement or member: JSDoc or line comments.
@@ -278,47 +435,4 @@ function docOf(n, sf, ts) {
   const text = ranges.map((r) => sf.text.slice(r.pos, r.end)).join("\n")
     .replace(/^\s*\/\*\*?|\*\/\s*$/gm, "").replace(/^\s*(\*|\/\/)\s?/gm, "").replace(/\s+/g, " ").trim();
   return text || null;
-}
-
-// A top-level call on a variable (app.get, router.use): the variable it is
-// made on, and each argument as a string, a codebase function, a variable, or
-// a call to library code.
-function registration(ts, checker, { stmt, sf, mod, rel }, unitByDecl, resolve) {
-  const line = (pos) => sf.getLineAndCharacterOfPosition(pos).line + 1;
-  const variable = (node) => {
-    const sym = resolve(node);
-    const d = (sym?.declarations || []).find((x) => ts.isVariableDeclaration(x) && ts.isIdentifier(x.name));
-    if (!d) return null;
-    const file = d.getSourceFile();
-    return { id: `${moduleOf(relativeTo(file.fileName, sf.fileName, rel))}:${d.name.text}`, init: d.initializer ? d.initializer.getText(file).replace(/\s+/g, "").slice(0, 80) : null };
-  };
-  const arg = (a) => {
-    if (ts.isStringLiteral(a) || ts.isNoSubstitutionTemplateLiteral(a)) return { kind: "string", value: a.text };
-    const own = unitByDecl.get(a);
-    if (own) return { kind: "unit", id: own };
-    if (ts.isIdentifier(a) || ts.isPropertyAccessExpression(a)) {
-      const sym = resolve(ts.isPropertyAccessExpression(a) ? a.name : a);
-      const unit = (sym?.declarations || []).map((d) => unitByDecl.get(d)).find(Boolean);
-      if (unit) return { kind: "unit", id: unit };
-      const v = variable(ts.isPropertyAccessExpression(a) ? a.name : a);
-      if (v) return { kind: "var", ...v };
-    }
-    if (ts.isCallExpression(a)) return { kind: "call", text: a.getText(sf).replace(/\s+/g, " ").slice(0, 80) };
-    return { kind: "other", text: a.getText(sf).replace(/\s+/g, " ").slice(0, 80) };
-  };
-  const target = stmt.expression;
-  return {
-    file: rel,
-    module: mod,
-    line: line(stmt.getStart(sf)),
-    method: target.name.text,
-    receiver: { text: target.expression.getText(sf).replace(/\s+/g, ""), ...(variable(target.expression) || {}) },
-    args: stmt.arguments.map(arg),
-  };
-}
-
-// The path of another source file, relative to the codebase root.
-function relativeTo(fileName, currentFileName, currentRel) {
-  const root = currentFileName.slice(0, currentFileName.length - currentRel.length);
-  return fileName.startsWith(root) ? fileName.slice(root.length) : fileName;
 }

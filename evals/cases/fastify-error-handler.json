@@ -1,0 +1,9 @@
+{
+  "why": "a thrown error takes the outcome the Fastify error handler gives it, read from the handler's code in the context",
+  "fixture": "tests/fixtures/typescript-fastify",
+  "unit": "src.notes.store:NoteStore#get",
+  "expect": {
+    "exitsInclude": ["NOT_FOUND"],
+    "raisesInclude": ["NotFoundError"]
+  }
+}

@@ -1,6 +1,6 @@
 // TypeScript and JavaScript: the TypeScript compiler API indexes the code
-// (index.mjs) and its type checker resolves the calls; two adapters read
-// Express apps and plain modules. The contract is ../contract.mjs.
+// (index.mjs) and its type checker resolves the calls; adapters read Express
+// and Fastify apps and plain modules. The contract is ../contract.mjs.
 
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -8,7 +8,12 @@ import { indexTypescript } from "./index.mjs";
 import { createResolver } from "./resolve.mjs";
 import { coverage } from "./coverage.mjs";
 import * as express from "./adapters/express.mjs";
+import * as fastify from "./adapters/fastify.mjs";
 import * as plain from "./adapters/plain.mjs";
+
+const ADAPTERS = [express, fastify, plain];
+// What makes a call inside a function a registration: every adapter's instances.
+const RECEIVERS = Object.fromEntries(["init", "paramType", "plugin"].map((k) => [k, ADAPTERS.flatMap((a) => a.RECEIVERS?.[k] || [])]));
 
 const SOURCE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
 const SKIP_DIRS = new Set(["node_modules", "dist", "build", "out", "coverage", "vendor"]);
@@ -40,9 +45,9 @@ export default {
   defaults: { sourcePaths: ["."] },
   configKeys: {},
   treePaths: (config) => (config.sourcePaths.includes(".") ? ["."] : [...config.sourcePaths, "package.json", "tsconfig.json"]),
-  index: ({ root, paths }) => indexTypescript({ root, paths }),
+  index: ({ root, paths }) => indexTypescript({ root, paths, receivers: RECEIVERS }),
   createResolver,
-  adapters: [express, plain],
+  adapters: ADAPTERS,
   prompt: {
     branchPoints: "if, else, switch, ternary, && and || that skip work, ?? fallback, optional chaining that skips a call, try/catch, throw, early return, an awaited call that can reject",
     exceptionExample: "ValidationError",

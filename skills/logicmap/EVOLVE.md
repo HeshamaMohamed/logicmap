@@ -7,7 +7,7 @@ Work in the framework repo, `ROOT`. Every agent-facing text you write or edit (p
 ## Steps
 
 1. **Record.** Read `last-run.json` in the cache folder (`$LOGICMAP_CACHE`, else `~/.cache/logicmap`): `error`, `failures`, `problems`, `coverage`. Find the gap's record in `ROOT/gaps/` by code and what happens, or create one (format below). Everyone who uses the framework reads its gap records, so write each one in Ruby, Rails and fixture terms; the classes, files, commits and features of the codebase where the gap showed up stay out of it. Done when the record names the code and what happens, with `status: open`.
-2. **Red.** Reproduce the gap at its smallest in the fixture of the same shape: `ROOT/tests/fixtures/graphql-standard/` (graphql-ruby by its own conventions), `rails-graphql/` (a codebase with its own GraphQL conventions), `plain-ruby/`, `typescript-express/` or `javascript-plain/`; a new kind of codebase gets its own fixture folder. Guard it:
+2. **Red.** Reproduce the gap at its smallest in the fixture of the same shape: `ROOT/tests/fixtures/graphql-standard/` (graphql-ruby by its own conventions), `rails-graphql/` (a codebase with its own GraphQL conventions), `plain-ruby/`, `typescript-express/`, `typescript-fastify/` or `javascript-plain/`; a new kind of codebase gets its own fixture folder. Guard it:
    - in the deterministic layers (index, resolver, adapter, assembly, change, format) with a test in `ROOT/tests/*.test.mjs`;
    - in what Claude states about a unit with a case in `ROOT/evals/cases/`; a new kind of check goes into `CHECKS` in `evals/run.mjs`.
 
