@@ -5,7 +5,7 @@ description: Decision graph of a Ruby, TypeScript or JavaScript codebase, drawn 
 
 # logicmap
 
-Turns code into a **decision graph**: entry points at the top, decisions as diamonds, outcomes at the ends, every node traced to its lines. It reads a codebase through its language and framework: Ruby (Rails with graphql-ruby, plain Rails, plain Ruby), and TypeScript or JavaScript (Express, plain modules). The framework sits two folders above this file, symlinks resolved:
+Turns code into a **decision graph**: entry points at the top, decisions as diamonds, outcomes at the ends, every node traced to its lines. It reads a codebase through its language and framework: Ruby (Rails with graphql-ruby, plain Rails, plain Ruby), and TypeScript or JavaScript (Express, Fastify, plain modules). The framework sits two folders above this file, symlinks resolved:
 
 ```bash
 ROOT="$(cd "<this skill's base directory>" && pwd -P)/../.."

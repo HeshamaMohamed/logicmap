@@ -4,8 +4,16 @@
 // app.use(prefix, ...middleware, router).
 
 import { COPY } from "../copy.mjs";
+import { HTTP_EXITS, HTTP_OUTCOMES } from "./http.mjs";
 
 export const NAME = "express";
+
+// What the index treats as an Express app or router inside a function.
+export const RECEIVERS = {
+  init: [/^express\(\)$/, /^(express\.)?Router\(/],
+  paramType: [/^(express\.)?(Express|Application|Router)$/],
+  plugin: [],
+};
 
 const VERBS = ["get", "post", "put", "patch", "delete", "options", "head", "all"];
 const isApp = (init) => /^express\(\)$/.test(init || "");
@@ -109,10 +117,10 @@ export function createAdapter({ index, source, config }) {
 
   return {
     name: NAME,
-    seedOutcomes: { INTERNAL_SERVER_ERROR: { kind: "crash", text: COPY.serverError } },
+    seedOutcomes: { ...HTTP_OUTCOMES },
     context: [
       "Framework: Express. A route runs the middleware registered before it, in order, then its handler.",
-      "A middleware or handler ends the request when it sends a response (res.json, res.send, res.end, res.redirect, res.sendStatus): that is an exit. Name its outcome after the HTTP status (BAD_REQUEST, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, UNPROCESSABLE_ENTITY), and give a 2xx response a success outcome you name (ORDER_CREATED). Calling next() passes the request on.",
+      `A middleware or handler ends the request when it sends a response (res.json, res.send, res.end, res.redirect, res.sendStatus): that is an exit. ${HTTP_EXITS}, and give a 2xx response a success outcome you name (ORDER_CREATED). Calling next() passes the request on.`,
       "next(err), or an error thrown in a synchronous handler, ends the request with INTERNAL_SERVER_ERROR through the error middleware.",
       major !== null && major >= 5
         ? "Express 5: a promise that an async handler rejects also reaches the error middleware (INTERNAL_SERVER_ERROR)."

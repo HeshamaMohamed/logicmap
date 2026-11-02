@@ -3,12 +3,13 @@
 // matched by method name, narrowed by the receiver's name when it names a class.
 
 const MAX_SAME_NAME = 6;
-// Methods of built-in objects and of Express's request and response: a call
+// Methods of built-in objects and of Express's and Fastify's request and reply: a call
 // to one of these on an untyped value is never a codebase method of that name.
 const BUILTIN_NAMES = new Set(["then", "catch", "finally", "map", "filter", "reduce", "forEach", "some", "every", "find", "findIndex", "includes",
   "push", "pop", "shift", "slice", "splice", "concat", "join", "split", "sort", "keys", "values", "entries", "get", "set", "has", "delete", "add",
   "toString", "trim", "replace", "match", "test", "parse", "stringify", "log", "error", "warn", "info", "debug", "json", "send", "status",
-  "end", "redirect", "next", "use", "listen", "emit", "on", "resolve", "reject", "all", "assign", "freeze", "round", "floor", "ceil", "min", "max"]);
+  "end", "redirect", "next", "use", "listen", "emit", "on", "resolve", "reject", "all", "assign", "freeze", "round", "floor", "ceil", "min", "max",
+  "code", "header", "headers", "type", "hijack"]);
 
 export function createResolver(index) {
   const { methods } = index;

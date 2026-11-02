@@ -13,7 +13,7 @@ panel lists every ending and the notes that a reviewer should read.
 
 It runs on any PR, commit or feature of a Ruby codebase (Rails with graphql-ruby,
 plain Rails, or plain Ruby). It also runs on TypeScript and JavaScript codebases
-(Express, or plain modules). Each language is a pack in `extractor/languages/`, and `CONTRIBUTING.md`
+(Express, Fastify, or plain modules). Each language is a pack in `extractor/languages/`, and `CONTRIBUTING.md`
 shows how to add one. It also grows: every case it can't handle yet fails loudly,
 is recorded in `gaps/`, and is closed with a test (see `CONTRIBUTING.md`).
 
@@ -135,6 +135,11 @@ helpers and guard DSL.
    - `express`: every route of an Express app and the routers it mounts: the middleware
      registered before it, in order, then its handlers. Library middleware (`cors()`)
      is drawn by name.
+   - `fastify`: every route of a Fastify app, including the routes of functions the app
+     is handed to (`registerRoutes(app)`) and of plugins it registers, with their
+     prefix. A route runs its instance's hooks in lifecycle order, then its own route
+     hooks, then its handler. The error handler's code goes to Claude as context,
+     because it decides the reply for every thrown error.
    - `plain`: every exported function and public method of an exported class, or the
      ones `entryPoints` names.
 4. **Affected** (`extractor/affected.mjs`). For a change, a static call graph finds
