@@ -1,0 +1,10 @@
+{
+  "why": "an Express 4 async handler that throws again leaves the request with no response; the handler opens the service it calls",
+  "fixture": "tests/fixtures/typescript-express",
+  "unit": "src.routes.orders:ordersRouter.post@12",
+  "expect": {
+    "callsInclude": ["src.services.orders:OrderService#create"],
+    "exitsInclude": ["UNPROCESSABLE_ENTITY"],
+    "notesMatch": ["(never|no)\\b.{0,20}response"]
+  }
+}

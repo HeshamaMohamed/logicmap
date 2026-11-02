@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// logicmap: a Ruby codebase's decisions as a decision-graph/0.1 JSON file.
+// logicmap: a codebase's decisions as a decision-graph/0.1 JSON file.
 //
 //   bin/logicmap --repo PATH --list
 //   bin/logicmap --repo PATH --base main [--head REF] [--plan]   a PR: the entry points it reaches
@@ -11,8 +11,8 @@
 // Options: --config FILE (default: the repo's .logicmap.json), --out FILE, --max-entries (12),
 // --model (claude-opus-5-5), --effort (medium),
 // --concurrency (4), --max-depth (6), --field-depth (1: the result type's fields and the
-// types one level under it). Every run writes .cache/last-run.json
-// (LOGICMAP_CACHE moves the cache).
+// types one level under it). Every run writes last-run.json in the cache folder
+// (~/.cache/logicmap; LOGICMAP_CACHE moves it).
 
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
@@ -27,7 +27,7 @@ import { assemble } from "./assemble.mjs";
 import { checkoutTree, markChanges, readChange, resolveChange } from "./change.mjs";
 import { affectedEntries, changedUnits, markIndirect, staticCalls, stepRoots, uncoveredChanges } from "./affected.mjs";
 import { coded } from "./errors.mjs";
-import { unsupportedError } from "./adapters/rails.mjs";
+import { pickLanguage, unsupportedError } from "./languages/index.mjs";
 import { validate } from "../lib/validate.mjs";
 
 
@@ -93,7 +93,8 @@ async function main() {
   }
   const repo = resolve(args.repo);
   // Flags win, then the codebase's .logicmap.json, then FALLBACK.
-  const config = loadConfig(repo, args.config);
+  const language = pickLanguage(repo);
+  const config = loadConfig(repo, args.config, language);
   const fromConfig = { "max-entries": config.maxEntries, model: config.model, effort: config.effort, "field-depth": config.fieldDepth };
   for (const [name, value] of Object.entries(FALLBACK)) args[name] ??= fromConfig[name] !== undefined ? String(fromConfig[name]) : value;
   if (config.file) report.config = config.file;
@@ -111,7 +112,7 @@ async function main() {
   // The code to read: the working tree, or the head of the change under review.
   const range = resolveChange(repo, args);
   const change = range ? readChange(repo, range) : null;
-  const root = range ? checkoutTree(repo, range.headSha, join(CACHE, "trees", range.headSha), [...config.sourcePaths, "config"]) : repo;
+  const root = range ? checkoutTree(repo, range.headSha, join(CACHE, "trees", range.headSha), language.treePaths(config)) : repo;
   if (change) report.change = { label: change.label, title: change.title, hunks: change.hunks.length };
 
   const { index, resolver, adapter, source } = loadCodebase(root, repo, { configRepo: repo, configFile: args.config });
@@ -121,7 +122,7 @@ async function main() {
   if (args.list) {
     for (const ep of found) console.log(`${ep.kind.padEnd(17)} ${ep.name.padEnd(44)} ${ep.className}${ep.unsupported?.length ? `  [${ep.unsupported[0].code}]` : ""}`);
     const marked = found.filter((ep) => ep.unsupported?.length).length;
-    console.log(`\n${found.length} entry points${marked ? `, ${marked} marked [CODE] until the adapter reads them` : ""}; ${skipped.length} skipped (abstract bases, routes to gem code, missing controllers), listed in .cache/last-run.json`);
+    console.log(`\n${found.length} entry points${marked ? `, ${marked} marked [CODE] until the adapter reads them` : ""}; ${skipped.length} skipped (code the adapter cannot read or that is not in the codebase), listed in ${REPORT}`);
     writeReport({ status: "ok", mode: "list", entryPoints: found.map((ep) => ep.name), unsupported: found.filter((ep) => ep.unsupported?.length).map((ep) => ({ entry: ep.name, ...ep.unsupported[0] })), skipped });
     return;
   }
@@ -155,8 +156,9 @@ async function main() {
       const extra = deepFields.filter((f) => changed.has(f.method) && !(kept.steps.find((s) => s.fields)?.fields || []).some((k) => k.method === f.method));
       if (!extra.length) return { ...kept, distance: ep.distance, reaches: ep.reaches };
       const steps = kept.steps.filter((s) => !s.fields);
+      const fieldStep = kept.steps.find((s) => s.fields) || ep.steps.find((s) => s.fields);
       const fields = [...(kept.steps.find((s) => s.fields)?.fields || []), ...extra];
-      return { ...kept, steps: [...steps, { fields }], distance: ep.distance, reaches: ep.reaches };
+      return { ...kept, steps: [...steps, { ...fieldStep, fields }], distance: ep.distance, reaches: ep.reaches };
     });
     if (entries.length > maxEntries && !args.plan) {
       throw coded("TOO_MANY_AFFECTED", `the change reaches ${entries.length} entry points, more than --max-entries ${maxEntries}; nearest: ${entries.slice(0, maxEntries).map((ep) => `${ep.name} (${ep.distance})`).join(", ")}`, "Run with --plan to see them all, then pick with --entries a,b,c or raise --max-entries.", String(entries.length));
@@ -167,7 +169,7 @@ async function main() {
   const blocked = entries.find((ep) => ep.unsupported?.length);
   if (blocked && !args.plan) throw unsupportedError(blocked);
   if (!entries.length) {
-    throw coded("NO_ENTRIES", "the change reaches no entry point", "Name entry points with --entries; the changed units are in .cache/last-run.json.", change?.label);
+    throw coded("NO_ENTRIES", "the change reaches no entry point", `Name entry points with --entries; the changed units are in ${REPORT}.`, change?.label);
   }
 
   const plan = {
@@ -188,7 +190,7 @@ async function main() {
   console.log(`Extracting ${entries.length} entry point(s) from ${root} with ${options.model} (effort ${options.effort})`);
   const roots = [...new Set(entries.flatMap(stepRoots))];
   const { units, stubs, failures, stats } = await extractUnits({
-    roots, index, resolver, adapter, source, options,
+    roots, language, index, resolver, adapter, source, options,
     cacheDir: join(CACHE, "units"),
     workDir: join(CACHE, "claude-cwd"),
     log: (line) => console.log(line),
@@ -198,19 +200,19 @@ async function main() {
   if (failures.length) {
     report.failures = failures;
     const first = failures[0];
-    throw coded(first.code, `${failures.length} unit(s) could not be extracted, first ${first.id}: ${first.errors.join("; ")}`, first.code === "UNIT_REJECTED" ? "Read the reasons in .cache/last-run.json; a prompt or check change belongs in the evolve loop (skills/logicmap/EVOLVE.md)." : "Fix the cause and rerun; finished units come from the cache.", first.id);
+    throw coded(first.code, `${failures.length} unit(s) could not be extracted, first ${first.id}: ${first.errors.join("; ")}`, first.code === "UNIT_REJECTED" ? `Read the reasons in ${REPORT}; a prompt or check change belongs in the evolve loop (skills/logicmap/EVOLVE.md).` : "Fix the cause and rerun; finished units come from the cache.", first.id);
   }
 
-  const codebase = { name: basename(repo), path: repo, commit: change ? change.label : gitHead(repo), language: "ruby" };
+  const codebase = { name: basename(repo), path: repo, commit: change ? change.label : gitHead(repo), language: language.name };
   const { graph, ranges, problems, extracted, folded } = assemble({ codebase, adapter, entries, units, stubs, index });
   if (problems.length) {
     report.problems = problems;
-    throw coded(problems[0].code, `the units do not fit together: ${problems.map((p) => p.message).join("; ")}`, "Read the problems in .cache/last-run.json and follow skills/logicmap/EVOLVE.md.");
+    throw coded(problems[0].code, `the units do not fit together: ${problems.map((p) => p.message).join("; ")}`, `Read the problems in ${REPORT} and follow skills/logicmap/EVOLVE.md.`);
   }
   if (change) {
     const direct = markChanges(graph, ranges, change);
     const indirect = markIndirect({ graph, ranges, unmatched: direct.unmatched, index, resolver, source });
-    const uncovered = uncoveredChanges({ unmatched: indirect.unmatched, index, resolver, extracted, folded, sourceDirs: config.sourcePaths, source, explainConstant: adapter.explainConstant });
+    const uncovered = uncoveredChanges({ unmatched: indirect.unmatched, index, resolver, language, extracted, folded, sourceDirs: config.sourcePaths, source, explainConstant: adapter.explainConstant });
     if (uncovered.length) graph.coverage = { uncovered };
     console.log(`Change ${change.label} "${change.title}": ${direct.marked + indirect.marked} node(s) marked (${indirect.marked} through constants or unopened methods); ${uncovered.length} changed hunk(s) not in the graph`);
   }

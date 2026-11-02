@@ -3,7 +3,6 @@
 // connection's connect; rake tasks and jobs run outside any request. The
 // rails-graphql adapter builds on this one; a Rails app without GraphQL uses it alone.
 
-import { coded } from "../errors.mjs";
 import { COPY } from "../copy.mjs";
 
 export const NAME = "rails";
@@ -109,7 +108,7 @@ export function railsEntries({ index, resolver, exclude = () => false, middlewar
     // A filter defined in a gem (authenticate_user!) has no code here: it is drawn by name.
     const step = (filter) => {
       const id = resolver.findMethod(controller, filter.name, false);
-      const base = id ? { node: id } : { gem: filter.name };
+      const base = id ? { node: id } : { external: { id: `gem:${filter.name}`, text: COPY.gemStep(filter.name), detail: COPY.gemDetail } };
       if (filter.skipWhen) return { fork: { name: filter.name, when: filter.skipWhen, then: [], otherwise: [base] } };
       if (filter.runWhen) return { fork: { name: filter.name, when: filter.runWhen, then: [base], otherwise: [] } };
       return base;
@@ -212,9 +211,4 @@ export function createAdapter({ index, resolver, source, config }) {
     explainConstant: () => null,
     skipTarget: (id) => skip.some((re) => re.test(id)),
   };
-}
-
-export function unsupportedError(ep) {
-  const first = ep.unsupported[0];
-  return coded(first.code, `${ep.name}: ${first.message}`, first.remedy, ep.id);
 }

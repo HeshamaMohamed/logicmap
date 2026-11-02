@@ -5,11 +5,18 @@
   "private": true,
   "type": "module",
   "description": "Review the decisions code makes: a codebase as an expandable decision graph.",
-  "bin": { "logicmap": "bin/logicmap" },
+  "bin": {
+    "logicmap": "bin/logicmap"
+  },
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "eval": "node evals/run.mjs",
     "view": "node extractor/cli.mjs view"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "typescript": "6.0.3"
+  }
 }

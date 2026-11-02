@@ -7,7 +7,9 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { HOME, SOURCE_DIRS, loadCodebase } from "../extractor/load.mjs";
+import { HOME, loadCodebase } from "../extractor/load.mjs";
+import ruby from "../extractor/languages/ruby/pack.mjs";
+import { COPY as RUBY } from "../extractor/languages/ruby/copy.mjs";
 import { assemble } from "../extractor/assemble.mjs";
 import { markChanges, readChange, resolveChange } from "../extractor/change.mjs";
 import { affectedEntries, changedUnits, markIndirect, staticCalls, uncoveredChanges } from "../extractor/affected.mjs";
@@ -16,6 +18,7 @@ import { COPY } from "../extractor/copy.mjs";
 
 const FIXTURE = join(HOME, "tests", "fixtures", "rails-graphql");
 const fixture = loadCodebase(FIXTURE);
+const SOURCE_DIRS = ruby.defaults.sourcePaths;
 
 function copyFixture() {
   const dir = mkdtempSync(join(tmpdir(), "logicmap-"));
@@ -129,7 +132,7 @@ test("adapter: entry points, guards and seeded outcomes", () => {
     { fields: [
       { type: "Types::Objects::PaymentType", field: "receipt_url", method: "Types::Objects::PaymentType#receipt_url" },
       { type: "Types::Objects::ProjectType", field: "status_label", method: "Types::Objects::ProjectType#status_label" },
-    ] },
+    ], text: RUBY.fieldsText, detail: RUBY.fieldsDetail },
   ]);
   assert.equal(create.summary, "Record a payment on a project");
   assert.equal(fixture.adapter.seedOutcomes.UNAUTHENTICATED.kind, "rejected");
@@ -199,7 +202,7 @@ test("change: a PR range marks the touched decision, picks the entry points, rep
   const { marked, unmatched } = markChanges(graph, ranges, change);
   assert.equal(marked, 1);
   assert.equal(graph.nodes["Payment@validations~3"].change, "added");
-  const uncovered = uncoveredChanges({ unmatched, index: codebase.index, resolver: codebase.resolver, extracted, sourceDirs: SOURCE_DIRS, source: codebase.source });
+  const uncovered = uncoveredChanges({ unmatched, index: codebase.index, resolver: codebase.resolver, language: codebase.language, extracted, sourceDirs: SOURCE_DIRS, source: codebase.source });
   assert.deepEqual(uncovered, [{ where: "app/models/project.rb:3", reason: COPY.unreached("Project.open") }]);
 });
 
@@ -363,9 +366,9 @@ test("change: lines the graph can't draw get a reason a reviewer can act on", ()
   const change = readChange(dir, resolveChange(dir, { base: "HEAD~1" }));
   const uncovered = uncoveredChanges({ unmatched: change.hunks, ...codebase, extracted: new Set(), sourceDirs: SOURCE_DIRS });
   const reasons = Object.fromEntries(uncovered.map((u) => [u.where.split(":")[0], u.reason]));
-  assert.equal(reasons["app/models/project.rb"], COPY.onlyComments);
-  assert.equal(reasons["app/jobs/reminder_job.rb"], COPY.structure);
-  assert.equal(reasons["config_note.yml"], COPY.outsideIndex(SOURCE_DIRS.join(", ")));
+  assert.equal(reasons["app/models/project.rb"], RUBY.onlyComments);
+  assert.equal(reasons["app/jobs/reminder_job.rb"], RUBY.structure);
+  assert.equal(reasons["config_note.yml"], COPY.outsideIndex("Ruby", SOURCE_DIRS.join(", ")));
 });
 
 test("type fields: an operation's result type and the types under it bring their field methods", () => {
@@ -377,7 +380,7 @@ test("type fields: an operation's result type and the types under it bring their
   assert.deepEqual(problems, []);
   const fields = graph.nodes["createPayment@fields"];
   assert.deepEqual(fields.steps, ["Types::Objects::PaymentType#receipt_url", "Types::Objects::ProjectType#status_label"]);
-  assert.equal(fields.text, COPY.fieldsText);
+  assert.equal(fields.text, RUBY.fieldsText);
 });
 
 test("type fields: a change to a field method reaches the operations that return its type", () => {
@@ -443,7 +446,7 @@ test("entry points beyond GraphQL: a filter with if: or unless: is a fork on its
   assert.deepEqual(index.unsupported, []);
   assert.deepEqual(index.steps.slice(1, 3), [
     { fork: { name: "require_admin!", when: "request.format.json?", then: [], otherwise: [{ node: "Admin::ApplicationController#require_admin!" }] } },
-    { fork: { name: "warm_cache", when: "not fresh?", then: [{ gem: "warm_cache" }], otherwise: [] } },
+    { fork: { name: "warm_cache", when: "not fresh?", then: [{ external: { id: "gem:warm_cache", text: RUBY.gemStep("warm_cache"), detail: RUBY.gemDetail } }], otherwise: [] } },
   ]);
   const destroy = found.find((e) => e.id === "Admin::PaymentsController#destroy");
   assert.deepEqual(destroy.steps[1], { node: "Admin::ApplicationController#require_admin!" }, "the skip applies to index only");
@@ -484,7 +487,7 @@ test("config initializers: request middleware is the first step, sees the routes
 
   const { codebase, change } = commitChange((dir) => replaceIn(dir, "config/initializers/money.rb", '"EUR"', '"USD"'));
   const uncovered = uncoveredChanges({ unmatched: change.hunks, ...codebase, extracted: new Set(), sourceDirs: SOURCE_DIRS });
-  assert.deepEqual(uncovered.map((u) => u.reason), [COPY.startupSetting]);
+  assert.deepEqual(uncovered.map((u) => u.reason), [RUBY.startupSetting]);
 });
 
 test("coverage: reasons for lines between steps, folded wrappers, constants, the exception table and the schema dump", () => {
@@ -498,7 +501,7 @@ test("coverage: reasons for lines between steps, folded wrappers, constants, the
       hunk("app/graphql/app_schema.rb", 3),
       hunk("db/schema.rb", 10),
     ],
-    index, resolver, source, sourceDirs: SOURCE_DIRS,
+    index, resolver, source, language: fixture.language, sourceDirs: SOURCE_DIRS,
     extracted: new Set(["Mutations::Payments::CreatePayment#resolve", "AccessPolicy.permitted?"]),
     folded: new Set(["AccessPolicy.permitted?"]),
     explainConstant: adapter.explainConstant,
@@ -507,8 +510,8 @@ test("coverage: reasons for lines between steps, folded wrappers, constants, the
     COPY.betweenSteps("Mutations::Payments::CreatePayment#resolve"),
     COPY.foldedInto("AccessPolicy.permitted?"),
     COPY.constantUnread("Mutations::Payments::CreatePayment::MAX_AMOUNT_CENTS"),
-    COPY.exceptionTable,
-    COPY.schemaDump,
+    RUBY.exceptionTable,
+    RUBY.schemaDump,
   ]);
 });
 

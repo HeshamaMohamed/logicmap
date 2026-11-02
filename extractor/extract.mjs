@@ -14,10 +14,10 @@ import { describeFinding, lintTexts } from "./text-lint.mjs";
 const CODE = /^[A-Z][A-Z0-9_]*$/;
 const MAX_ATTEMPTS = 3;
 
-export async function extractUnits({ roots, index, resolver, adapter, source, options, cacheDir, workDir, log }) {
+export async function extractUnits({ roots, language, index, resolver, adapter, source, options, cacheDir, workDir, log }) {
   mkdirSync(cacheDir, { recursive: true });
   mkdirSync(workDir, { recursive: true });
-  const system = systemPrompt(adapter);
+  const system = systemPrompt(language, adapter);
   const units = new Map();
   const depthOf = new Map();
   const stubs = new Map();
@@ -61,7 +61,7 @@ export async function extractUnits({ roots, index, resolver, adapter, source, op
         }
         stats.calls++;
         stats.cost += result.cost;
-        errors = checkUnit(result.output, unit, targets, adapter.seedOutcomes);
+        errors = checkUnit(result.output, unit, targets, adapter.seedOutcomes, language.prompt.exceptionName);
         log(`  ${errors.length ? "✗" : "✓"} ${id} (${((Date.now() - started) / 1000).toFixed(0)}s${attempt > 1 ? `, attempt ${attempt}` : ""})${errors.length ? `: ${errors.slice(0, 2).join("; ")}${errors.length > 2 ? ` (+${errors.length - 2} more)` : ""}` : ""}`);
         if (!errors.length) {
           output = result.output;
@@ -128,7 +128,7 @@ export function calledIds(steps, out = new Set()) {
 
 // Deterministic checks on one unit's answer. Anything that fails is sent back
 // to Claude with the reasons; nothing is repaired by guessing.
-function checkUnit(output, unit, targets, seedOutcomes) {
+function checkUnit(output, unit, targets, seedOutcomes, exceptionName) {
   const errors = [];
   const allowedCalls = new Set(targets.map((t) => t.id));
   const declared = new Map();
@@ -157,7 +157,7 @@ function checkUnit(output, unit, targets, seedOutcomes) {
       for (const e of s.exits || []) {
         if (!e.when || !e.when.trim()) errors.push(`step ${at}: an exit has no condition`);
         if (!seedOutcomes[e.outcome] && !declared.has(e.outcome)) errors.push(`step ${at}: outcome ${e.outcome} is neither predefined nor declared in outcomes`);
-        if (e.raises && !/^(::)?[A-Z][A-Za-z0-9_]*(::[A-Z][A-Za-z0-9_]*)*$/.test(e.raises)) errors.push(`step ${at}: raises "${e.raises}" is not an exception class name; use "" when the exit raises nothing`);
+        if (e.raises && !exceptionName.test(e.raises)) errors.push(`step ${at}: raises "${e.raises}" is not an exception class name; use "" when the exit raises nothing`);
       }
       if (unit.kind === "declarations" && !unit.allowExits && (s.exits || []).length) errors.push(`step ${at}: these declarations end no request, so their steps take exits []`);
       const decides = [s.exits, s.returns, s.branches, s.calls, s.steps].some((list) => (list || []).length);

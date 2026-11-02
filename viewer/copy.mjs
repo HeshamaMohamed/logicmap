@@ -57,6 +57,7 @@ export const COPY = {
   worthALook: "! Worth a look",
   endsHere: "Ends here when",
   catches: "Catches these errors, so they end nothing past this step",
+  anyError: "Any error",
   everyWayInside: "Every way it can end, including the steps inside",
   sharedBy: (n) => `Shared by ${n} entry points`,
   source: "Source",

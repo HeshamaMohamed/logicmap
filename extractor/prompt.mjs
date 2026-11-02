@@ -4,9 +4,9 @@ import { OUTCOME_KINDS } from "../lib/validate.mjs";
 
 export const PROMPT_VERSION = "unit-v7";
 
-const SYSTEM = `You turn one unit of Ruby code into a decision flow that reviewers read in place of the code. The flow is faithful: each step states, in plain domain English and with the code's own values, what the code at its lines decides or does.
+const system = (language) => `You turn one unit of ${language.label} code into a decision flow that reviewers read in place of the code. The flow is faithful: each step states, in plain domain English and with the code's own values, what the code at its lines decides or does.
 
-The flow is done when every branch point in the source (if, unless, case, ternary, rescue, raise, early return, guard) belongs to a step that states it.
+The flow is done when every branch point in the source (${language.prompt.branchPoints}) belongs to a step that states it.
 
 Reader text: every string a reader sees (summary, question, pass, text, detail, notes, each when and value, each outcome text) is Simplified Technical English written by a careful engineer:
 - One fact per sentence, at most 25 words, in active voice and a simple tense.
@@ -30,7 +30,7 @@ Step fields:
 - text: the rule with its concrete values, at most 16 words of domain language ("Lock the account on the 5th failed attempt"). For a check: what it requires, or what happens when it fails.
 - detail: a sentence or two for a nuance the text cannot hold; else "".
 - lines: [first, last] lines of the numbered source this step states.
-- exits: each way the unit's own code ends the request here: an exception that escapes (its code from the exception table), a returned mutation result, a rendered response. when = the condition, outcome = the code, raises = the exception class when the ending is an escaping exception ("ActiveRecord::RecordNotFound"), else "". An ending inside a called method belongs to that method: list the method in calls, and its exit shows there. Exits cover what real input can trigger; infrastructure faults (a database outage, saving data already validated) stay out.
+- exits: each way the unit's own code ends the request here: an exception that escapes (its code from the exception table), a returned mutation result, a rendered response. when = the condition, outcome = the code, raises = the exception class when the ending is an escaping exception ("${language.prompt.exceptionExample}"), else "". An ending inside a called method belongs to that method: list the method in calls, and its exit shows there. Exits cover what real input can trigger; infrastructure faults (a database outage, saving data already validated) stay out.
 - returns: each early result a helper hands back to its caller while the request carries on: when = the condition, value = the result in 1 to 4 words ("Deny", "No project"). Includes the final result when it depends on this step.
 - question, pass: the decision fields.
 - branches: a fork, where the code takes different paths that each do different work (if/else, case/when), rejoining afterwards or not. One branch per path: when = its condition, steps = its work ([] for a path that does nothing). A guard that ends the request on one side is a decision with exits and pass; paths that differ only in a value form one step.
@@ -38,8 +38,9 @@ Step fields:
 - calls: offered ids whose code holds further decisions behind this step, for the reader to open. A short wrapper that hands off to real decisions is listed; an offered method whose whole logic the step text already states (a one-line predicate, a getter) stays unlisted, as do logging, analytics and formatting.
 - notes: a decision a careful reviewer would question: a swallowed error, a silent fallback, a partial write outside a transaction, a security gap, behaviour contradicting the code's own comments. One or two sentences naming what happens and why it matters, grounded in the code shown. Most steps carry [].`;
 
-export function systemPrompt(adapter) {
-  return `${SYSTEM}\n\n${adapter.context}`;
+// language: the codebase's language pack, which names its branch points and exceptions.
+export function systemPrompt(language, adapter) {
+  return `${system(language)}\n\n${adapter.context}`;
 }
 
 function stepSchema(depth) {

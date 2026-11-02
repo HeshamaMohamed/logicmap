@@ -5,6 +5,15 @@ import assert from "node:assert/strict";
 import { COPY as VIEWER } from "../viewer/copy.mjs";
 import { COPY as EXTRACTOR } from "../extractor/copy.mjs";
 import { describeFinding, lintTexts } from "../extractor/text-lint.mjs";
+import { existsSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+import { HOME } from "../extractor/paths.mjs";
+
+// Every language pack's own texts, from extractor/languages/<name>/copy.mjs.
+const LANGUAGES_DIR = join(HOME, "extractor", "languages");
+const PACKS = await Promise.all(readdirSync(LANGUAGES_DIR, { withFileTypes: true })
+  .filter((e) => e.isDirectory() && existsSync(join(LANGUAGES_DIR, e.name, "copy.mjs")))
+  .map(async (e) => ({ name: e.name, copy: (await import(join(LANGUAGES_DIR, e.name, "copy.mjs"))).COPY })));
 
 // Flattens a copy module into texts, calling templates with sample values.
 function texts(copy, prefix) {
@@ -18,8 +27,9 @@ function texts(copy, prefix) {
   return out;
 }
 
-test("copy: every viewer and extractor text passes STE and the humanizer patterns", () => {
-  const findings = lintTexts([...texts(VIEWER, "viewer"), ...texts(EXTRACTOR, "extractor")]);
+test("copy: every viewer, extractor and language pack text passes STE and the humanizer patterns", () => {
+  assert.ok(PACKS.length, "at least one language pack has a copy.mjs");
+  const findings = lintTexts([...texts(VIEWER, "viewer"), ...texts(EXTRACTOR, "extractor"), ...PACKS.flatMap((p) => texts(p.copy, p.name))]);
   assert.deepEqual(findings.map(describeFinding), []);
 });
 

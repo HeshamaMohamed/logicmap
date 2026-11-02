@@ -6,13 +6,24 @@ Every case it can't handle yet is a **gap**: a coded error (`error[CODE]: …` p
 
 `npm test` checks the deterministic layers against `tests/fixtures/rails-graphql` in a few seconds. `npm run eval` asks Claude about fixture units and checks the answers; it costs a few cents and is free to rerun until the prompt changes.
 
-## Any Ruby codebase
+## Languages and codebases
 
-The framework reads Rails with graphql-ruby, plain Rails and plain Ruby, each through its own conventions, and nothing in it names one codebase's classes. What only one codebase does (a custom guard DSL, its own result helpers, an unusual folder layout) goes in that codebase's `.logicmap.json`; `examples/rails-graphql.logicmap.json` is a sample. The three fixtures under `tests/fixtures/` keep each shape tested.
+The core in `extractor/` names no language. Each language is a **pack** in `extractor/languages/<language>/`, and the core reads a codebase only through the pack contract in `extractor/languages/contract.mjs`. Two packs exist. Ruby reads Rails with graphql-ruby, plain Rails and plain Ruby. TypeScript reads TypeScript and JavaScript, Express apps and plain modules. Each adapter reads its framework through the framework's own conventions.
+
+Nothing in the framework names one codebase's classes. What only one codebase does (a custom guard DSL, its own result helpers, an unusual folder layout) goes in that codebase's `.logicmap.json`. `examples/rails-graphql.logicmap.json` is a sample. The fixtures under `tests/fixtures/` keep each shape tested.
+
+### Adding a language
+
+1. Create `extractor/languages/<language>/pack.mjs`. The comment at the top of `contract.mjs` lists every field, and `extractor/languages/ruby/pack.mjs` is a complete example.
+2. Write the index in any language you like, as long as it prints the index shape that `contract.mjs` describes. `npm test` checks every pack and every fixture index against the contract.
+3. Write at least one adapter. An adapter finds the entry points and gives Claude the framework context.
+4. Put the pack's reader text in its own `copy.mjs`. `npm test` lints it with the rest.
+5. List the pack in `extractor/languages/index.mjs`.
+6. Add a fixture under `tests/fixtures/`, tests for the pack's deterministic parts, and eval cases for what Claude states about its units.
 
 ## Writing for readers
 
-Everything a person reads on the diagram is written in Simplified Technical English and checked for AI writing habits. The two guides are vendored unmodified in `skills/logicmap/vendor/`: asd-ste100 (with its linter) and humanizer. The viewer's and the extractor's fixed wording sits in `viewer/copy.mjs` and `extractor/copy.mjs`, and `npm test` lints all of it. Claude's wording is linted per method during extraction; an answer that fails goes back to Claude with the reasons. Add new wording to a copy module, not inline in the code.
+Everything a person reads on the diagram is written in Simplified Technical English and checked for AI writing habits. The two guides are vendored unmodified in `skills/logicmap/vendor/`: asd-ste100 (with its linter) and humanizer. The fixed wording sits in `viewer/copy.mjs`, `extractor/copy.mjs` and each language pack's `copy.mjs`, and `npm test` lints all of it. Claude's wording is linted per method during extraction; an answer that fails goes back to Claude with the reasons. Add new wording to a copy module, not inline in the code.
 
 ## Writing for agents
 

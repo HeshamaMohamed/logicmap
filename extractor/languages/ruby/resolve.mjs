@@ -1,8 +1,9 @@
-import { coded } from "./errors.mjs";
+import { coded } from "../../errors.mjs";
 
-// Method lookup over the Prism index: constants by lexical nesting, ancestors
-// through superclass/include/extend, call-site targets, and declaration units
-// (validations, callbacks and other rules live in class bodies, not methods).
+// The Ruby resolver, over the Prism index: constants by lexical nesting,
+// ancestors through superclass/include/extend, call-site targets, constant
+// reads, and declaration units (validations, callbacks and other rules live in
+// class bodies, not methods).
 
 const OPERATORS = new Set(["==", "!=", "!", "[]", "[]=", "+", "-", "*", "/", "<", ">", "<=", ">=", "<<", "=~", "<=>", "&", "|", "%"]);
 const MAX_SAME_NAME = 6;
@@ -198,7 +199,7 @@ export function createResolver(index) {
 
   function unit(id) {
     if (declarationUnits[id]?.error) {
-      throw coded("SPLIT_DECLARATIONS", declarationUnits[id].error, "Teach resolve.mjs to build a declaration unit from several files (skills/logicmap/EVOLVE.md).", id);
+      throw coded("SPLIT_DECLARATIONS", declarationUnits[id].error, "Teach extractor/languages/ruby/resolve.mjs to build a declaration unit from several files (skills/logicmap/EVOLVE.md).", id);
     }
     if (declarationUnits[id]) return declarationUnits[id];
     const m = methods[id];
@@ -206,5 +207,21 @@ export function createResolver(index) {
     return { ...m, kind: "method", ranges: [[m.start, m.end]], title: id };
   }
 
-  return { resolveConst, ancestors, findMethod, callTargets, unit, byName, models, declarationUnits, declarationUnit };
+  // A constant read inside a method refers to a definition when the full path
+  // matches, or when a bare name is defined in the method's class, an enclosing
+  // module, or an ancestor. Returns the lines that read it.
+  function readsConstant(method, def) {
+    const full = constantId(def);
+    return (method.consts || []).filter((read) => {
+      if (read.name.includes("::")) return full.endsWith(read.name.replace(/^::/, ""));
+      if (read.name !== def.name) return false;
+      return method.owner === def.owner || method.owner.startsWith(`${def.owner}::`) || ancestors(method.owner).includes(def.owner);
+    }).map((read) => read.line);
+  }
+
+  return { resolveConst, ancestors, findMethod, callTargets, unit, byName, models, declarationUnits, declarationUnit, readsConstant, constantId };
+}
+
+function constantId(def) {
+  return `${def.owner}::${def.name}`;
 }

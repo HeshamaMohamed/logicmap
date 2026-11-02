@@ -142,7 +142,7 @@ export function createAdapter({ index, resolver, source, config }) {
       }
       level = next;
     }
-    return fields.length ? [{ fields }] : [];
+    return fields.length ? [{ fields, text: COPY.fieldsText, detail: COPY.fieldsDetail }] : [];
   }
   const returnedBy = (cls, chain) => chain.flatMap((owner) => decls(owner)
     .filter((d) => d.name === "type" || d.name === "result_field" || d.name === "payload_type" || (d.name === "field" && owner === cls))

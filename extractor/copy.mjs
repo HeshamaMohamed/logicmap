@@ -1,36 +1,17 @@
-// Every text the extractor writes for a reader, in one place, so the tests can
-// lint all of it (tests/copy.test.mjs). Written to the vendored asd-ste100 and
-// humanizer rules.
+// Every text the core extractor writes for a reader, in one place, so the tests
+// can lint all of it (tests/copy.test.mjs). A language pack keeps its own texts
+// in its copy.mjs. Written to the vendored asd-ste100 and humanizer rules.
 
 export const COPY = {
-  validationErrors: "The form has errors",
-  invalidArguments: "The arguments are not valid",
-  unauthorized: "The caller may not run this operation",
-  executionError: "The operation refused the request",
-  errorRaised: "An error goes back to the caller",
-  outsideIndex: (dirs) => `The index reads only Ruby files in ${dirs}.`,
-  classBody: (names) => `In a class-body declaration that holds no decision the graph draws: ${names}.`,
-  onlyComments: "Only comments or blank lines changed.",
-  structure: "Changes which modules the class includes, or which methods are private.",
-  testCode: "Test code. It does not run in production.",
-  translations: "Translation text. It changes wording, not decisions.",
-  migration: "A database migration. It changes the schema, not the decisions of a request.",
-  startupSetting: "A startup setting outside the request middleware. The graph does not draw it.",
+  outsideIndex: (language, dirs) => (dirs === "." ? `The index reads only ${language} files.` : `The index reads only ${language} files in ${dirs}.`),
   foldedInto: (ids) => `In ${ids}. The graph shows it as the method it calls.`,
   betweenSteps: (ids) => `In ${ids}, between the lines its drawn steps cover.`,
   constantUnread: (name) => `Changes ${name}, which no drawn step reads.`,
-  exceptionTable: "Changes the table that maps errors to outcome codes.",
-  schemaDump: "The database schema dump. It records the schema, not the decisions of a request.",
-  classBodyCode: "Code in a class body, outside methods and declarations.",
   unreached: (ids) => `In ${ids}. No extracted entry point reaches it.`,
-  fieldsText: "Resolve the fields the client asks for",
-  fieldsDetail: "Each field runs only when the request asks for it.",
-  gemStep: (name) => `Runs ${name}, which a gem defines`,
   filterFork: (name) => `Decide whether ${name} runs`,
   filterQuestion: (name) => `Does ${name} run?`,
   conditionHolds: (cond) => `When ${cond}`,
   otherwise: "Otherwise",
-  gemDetail: "The graph does not read gem code.",
   stubText: (id) => `Runs ${id}`,
   stubDetail: (depth) => `The graph does not open this call. It is deeper than --max-depth ${depth}.`,
   recursion: (text) => `Calls "${text}" again. The graph does not draw the second call.`,

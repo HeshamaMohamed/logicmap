@@ -1,0 +1,9 @@
+{
+  "why": "a thrown Error in plain JavaScript is an exit that names its class",
+  "fixture": "tests/fixtures/javascript-plain",
+  "unit": "src.discount:applyDiscount",
+  "expect": {
+    "exitsInclude": ["ERROR_THROWN"],
+    "raisesInclude": ["Error"]
+  }
+}
