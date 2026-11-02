@@ -1,5 +1,6 @@
 {
   "name": "logicmap",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Review the decisions code makes: a codebase as an expandable decision graph.",
