@@ -11,8 +11,8 @@
 // Options: --config FILE (default: the repo's .logicmap.json), --out FILE, --max-entries (12),
 // --model (claude-opus-5-5), --effort (medium),
 // --concurrency (4), --max-depth (6), --field-depth (1: the result type's fields and the
-// types one level under it). Every run writes .cache/last-run.json
-// (LOGICMAP_CACHE moves the cache).
+// types one level under it). Every run writes last-run.json in the cache folder
+// (~/.cache/logicmap; LOGICMAP_CACHE moves it).
 
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
@@ -122,7 +122,7 @@ async function main() {
   if (args.list) {
     for (const ep of found) console.log(`${ep.kind.padEnd(17)} ${ep.name.padEnd(44)} ${ep.className}${ep.unsupported?.length ? `  [${ep.unsupported[0].code}]` : ""}`);
     const marked = found.filter((ep) => ep.unsupported?.length).length;
-    console.log(`\n${found.length} entry points${marked ? `, ${marked} marked [CODE] until the adapter reads them` : ""}; ${skipped.length} skipped (abstract bases, routes to gem code, missing controllers), listed in .cache/last-run.json`);
+    console.log(`\n${found.length} entry points${marked ? `, ${marked} marked [CODE] until the adapter reads them` : ""}; ${skipped.length} skipped (code the adapter cannot read or that is not in the codebase), listed in ${REPORT}`);
     writeReport({ status: "ok", mode: "list", entryPoints: found.map((ep) => ep.name), unsupported: found.filter((ep) => ep.unsupported?.length).map((ep) => ({ entry: ep.name, ...ep.unsupported[0] })), skipped });
     return;
   }
@@ -169,7 +169,7 @@ async function main() {
   const blocked = entries.find((ep) => ep.unsupported?.length);
   if (blocked && !args.plan) throw unsupportedError(blocked);
   if (!entries.length) {
-    throw coded("NO_ENTRIES", "the change reaches no entry point", "Name entry points with --entries; the changed units are in .cache/last-run.json.", change?.label);
+    throw coded("NO_ENTRIES", "the change reaches no entry point", `Name entry points with --entries; the changed units are in ${REPORT}.`, change?.label);
   }
 
   const plan = {
@@ -200,14 +200,14 @@ async function main() {
   if (failures.length) {
     report.failures = failures;
     const first = failures[0];
-    throw coded(first.code, `${failures.length} unit(s) could not be extracted, first ${first.id}: ${first.errors.join("; ")}`, first.code === "UNIT_REJECTED" ? "Read the reasons in .cache/last-run.json; a prompt or check change belongs in the evolve loop (skills/logicmap/EVOLVE.md)." : "Fix the cause and rerun; finished units come from the cache.", first.id);
+    throw coded(first.code, `${failures.length} unit(s) could not be extracted, first ${first.id}: ${first.errors.join("; ")}`, first.code === "UNIT_REJECTED" ? `Read the reasons in ${REPORT}; a prompt or check change belongs in the evolve loop (skills/logicmap/EVOLVE.md).` : "Fix the cause and rerun; finished units come from the cache.", first.id);
   }
 
   const codebase = { name: basename(repo), path: repo, commit: change ? change.label : gitHead(repo), language: language.name };
   const { graph, ranges, problems, extracted, folded } = assemble({ codebase, adapter, entries, units, stubs, index });
   if (problems.length) {
     report.problems = problems;
-    throw coded(problems[0].code, `the units do not fit together: ${problems.map((p) => p.message).join("; ")}`, "Read the problems in .cache/last-run.json and follow skills/logicmap/EVOLVE.md.");
+    throw coded(problems[0].code, `the units do not fit together: ${problems.map((p) => p.message).join("; ")}`, `Read the problems in ${REPORT} and follow skills/logicmap/EVOLVE.md.`);
   }
   if (change) {
     const direct = markChanges(graph, ranges, change);

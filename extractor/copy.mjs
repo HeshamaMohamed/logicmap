@@ -3,7 +3,7 @@
 // in its copy.mjs. Written to the vendored asd-ste100 and humanizer rules.
 
 export const COPY = {
-  outsideIndex: (language, dirs) => `The index reads only ${language} files in ${dirs}.`,
+  outsideIndex: (language, dirs) => (dirs === "." ? `The index reads only ${language} files.` : `The index reads only ${language} files in ${dirs}.`),
   foldedInto: (ids) => `In ${ids}. The graph shows it as the method it calls.`,
   betweenSteps: (ids) => `In ${ids}, between the lines its drawn steps cover.`,
   constantUnread: (name) => `Changes ${name}, which no drawn step reads.`,

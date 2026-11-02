@@ -1,0 +1,5 @@
+{
+  "name": "price-tools",
+  "type": "module",
+  "main": "src/index.js"
+}

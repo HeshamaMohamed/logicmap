@@ -8,7 +8,7 @@ Every case it can't handle yet is a **gap**: a coded error (`error[CODE]: …` p
 
 ## Languages and codebases
 
-The core in `extractor/` names no language. Each language is a **pack** in `extractor/languages/<language>/`, and the core reads a codebase only through the pack contract in `extractor/languages/contract.mjs`. Ruby is the first pack. It reads Rails with graphql-ruby, plain Rails and plain Ruby, each through its own conventions.
+The core in `extractor/` names no language. Each language is a **pack** in `extractor/languages/<language>/`, and the core reads a codebase only through the pack contract in `extractor/languages/contract.mjs`. Two packs exist. Ruby reads Rails with graphql-ruby, plain Rails and plain Ruby. TypeScript reads TypeScript and JavaScript, Express apps and plain modules. Each adapter reads its framework through the framework's own conventions.
 
 Nothing in the framework names one codebase's classes. What only one codebase does (a custom guard DSL, its own result helpers, an unusual folder layout) goes in that codebase's `.logicmap.json`. `examples/rails-graphql.logicmap.json` is a sample. The fixtures under `tests/fixtures/` keep each shape tested.
 

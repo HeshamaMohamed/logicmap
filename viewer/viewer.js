@@ -887,7 +887,7 @@ function nodePanel(path, close) {
     ]) : null,
     (node.catches || []).length ? h("section", {}, [
       h("h3", { text: COPY.catches }),
-      h("div", { class: "mono muted", text: node.catches.join(", ") }),
+      h("div", { class: "mono muted", text: node.catches.map((c) => (c === "*" ? COPY.anyError : c)).join(", ") }),
     ]) : null,
     composite ? h("section", {}, [
       h("h3", { text: COPY.everyWayInside }),

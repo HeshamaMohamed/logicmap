@@ -18,11 +18,10 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const SKIP_DIRS = new Set(["node_modules", "vendor", "tmp", "log"]);
 const MAX_DEPTH = 6;
 
-// A Gemfile or a gemspec at the root, else a Ruby file in the folders below it.
+// 2 for a Gemfile or a gemspec at the root, 1 for a Ruby file in the folders below it, 0 for neither.
 function detect(root) {
-  if (existsSync(join(root, "Gemfile"))) return true;
-  if (readdirSync(root).some((f) => f.endsWith(".gemspec"))) return true;
-  return holdsRuby(root, 0);
+  if (existsSync(join(root, "Gemfile")) || readdirSync(root).some((f) => f.endsWith(".gemspec"))) return 2;
+  return holdsRuby(root, 0) ? 1 : 0;
 }
 
 function holdsRuby(dir, depth) {

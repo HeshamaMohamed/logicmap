@@ -17,6 +17,7 @@ export const CODES = {
   NOT_A_COMMIT: "a --base, --head or --change ref is not a commit",
   INDEX_FAILED: "a language pack's indexer could not run or parse the code, or its index breaks the contract",
   PRISM_MISSING: "no Ruby with the prism parser was found",
+  TYPESCRIPT_MISSING: "the TypeScript compiler the TypeScript pack parses with was not found",
   PYTHON_MISSING: "python3, which runs the STE linter, was not found",
   UNSUPPORTED_LANGUAGE: "no language pack recognises the codebase",
   PACK_INVALID: "a language pack does not meet extractor/languages/contract.mjs",

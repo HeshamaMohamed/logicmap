@@ -4,7 +4,8 @@
 //
 //   name                 the language id the graph records ("ruby")
 //   label                its name in reader text and prompts ("Ruby")
-//   detect(root)         true when the folder holds a codebase in this language
+//   detect(root)         2 for a project file of this language at the root, 1 for its source
+//                        files below the root, 0 for neither; the highest score wins, ties by order
 //   defaults             .logicmap.json defaults, at least { sourcePaths }
 //   configKeys           extra .logicmap.json keys, each { doc, default } (a list of strings)
 //   treePaths(config)    the paths to check out when the code under review is a commit

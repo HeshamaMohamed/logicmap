@@ -3,10 +3,11 @@
 
 import { existsSync } from "node:fs";
 import ruby from "./ruby/pack.mjs";
+import typescript from "./typescript/pack.mjs";
 import { checkPack } from "./contract.mjs";
 import { coded } from "../errors.mjs";
 
-export const LANGUAGES = [ruby];
+export const LANGUAGES = [ruby, typescript];
 
 export function pickLanguage(root) {
   for (const pack of LANGUAGES) {
@@ -14,7 +15,13 @@ export function pickLanguage(root) {
     if (problems.length) throw coded("PACK_INVALID", `the ${pack?.name || "unnamed"} language pack breaks the pack contract: ${problems.join("; ")}`, "Fix the pack to match extractor/languages/contract.mjs.", pack?.name);
   }
   if (!existsSync(root)) throw coded("BAD_ARGUMENT", `${root} does not exist`, "Pass --repo PATH to the root of an existing codebase.", root);
-  const match = LANGUAGES.find((pack) => pack.detect(root));
+  // The strongest sign wins: a project file at the root beats source files below it; a tie goes to the first pack.
+  let match = null;
+  let best = 0;
+  for (const pack of LANGUAGES) {
+    const score = pack.detect(root);
+    if (score > best) [match, best] = [pack, score];
+  }
   if (!match) {
     throw coded("UNSUPPORTED_LANGUAGE", `no language pack recognises the codebase at ${root} (packs: ${LANGUAGES.map((p) => p.name).join(", ")})`, "Point --repo at the root of a codebase in one of those languages, or add a language pack (CONTRIBUTING.md).", root);
   }

@@ -7,7 +7,7 @@ Work in the framework repo, `ROOT`. Every agent-facing text you write or edit (p
 ## Steps
 
 1. **Record.** Read `last-run.json` in the cache folder (`$LOGICMAP_CACHE`, else `~/.cache/logicmap`): `error`, `failures`, `problems`, `coverage`. Find the gap's record in `ROOT/gaps/` by code and what happens, or create one (format below). Everyone who uses the framework reads its gap records, so write each one in Ruby, Rails and fixture terms; the classes, files, commits and features of the codebase where the gap showed up stay out of it. Done when the record names the code and what happens, with `status: open`.
-2. **Red.** Reproduce the gap at its smallest in the fixture of the same shape: `ROOT/tests/fixtures/graphql-standard/` (graphql-ruby by its own conventions), `rails-graphql/` (a codebase with its own GraphQL conventions), or `plain-ruby/`; a new kind of codebase gets its own fixture folder. Guard it:
+2. **Red.** Reproduce the gap at its smallest in the fixture of the same shape: `ROOT/tests/fixtures/graphql-standard/` (graphql-ruby by its own conventions), `rails-graphql/` (a codebase with its own GraphQL conventions), `plain-ruby/`, `typescript-express/` or `javascript-plain/`; a new kind of codebase gets its own fixture folder. Guard it:
    - in the deterministic layers (index, resolver, adapter, assembly, change, format) with a test in `ROOT/tests/*.test.mjs`;
    - in what Claude states about a unit with a case in `ROOT/evals/cases/`; a new kind of check goes into `CHECKS` in `evals/run.mjs`.
 
@@ -20,8 +20,8 @@ Work in the framework repo, `ROOT`. Every agent-facing text you write or edit (p
 
 | The gap is in | Change |
 |---|---|
-| Ruby syntax or a construct the index reads wrongly or skips | `extractor/languages/ruby/index.rb` |
-| A call, ancestor or model declaration left unresolved | `extractor/languages/ruby/resolve.mjs` |
+| Syntax or a construct the index reads wrongly or skips | the pack's index: `extractor/languages/ruby/index.rb`, `extractor/languages/typescript/index.mjs` |
+| A call, ancestor or model declaration left unresolved | the pack's `resolve.mjs`; for TypeScript, first check that the type checker sees the call in `index.mjs` |
 | Entry points, guards, filters, outcome codes or framework context of one kind of codebase | `extractor/languages/<language>/adapters/<kind>.mjs`; plain Rails (routes, filters, channels, jobs, rake, middleware) is `rails.mjs`, which `rails-graphql.mjs` builds on |
 | Routes, rake tasks, visibility or rescue ranges read wrongly | `extractor/languages/ruby/index.rb` (`RoutesReader` for routes) |
 | A changed line given the wrong reason in `coverage` | the pack's `coverage.mjs`, or `uncoveredChanges` in `extractor/affected.mjs` for a rule every language shares |

@@ -159,7 +159,7 @@ export function uncoveredChanges({ unmatched, index, resolver, language, extract
     const at = where(hunk);
     const byFile = coverage.fileReason(hunk.file);
     if (byFile) return { where: at, reason: byFile };
-    const indexed = sourceDirs.some((p) => hunk.file === p || hunk.file.startsWith(`${p}/`)) && coverage.isSource(hunk.file);
+    const indexed = sourceDirs.some((p) => p === "." || hunk.file === p || hunk.file.startsWith(`${p}/`)) && coverage.isSource(hunk.file);
     if (!indexed) return { where: at, reason: COPY.outsideIndex(language.label, sourceDirs.join(", ")) };
     const ids = unitsAt(index, resolver, hunk);
     const lines = source ? source(hunk.file).slice(hunk.start - 1, hunk.end) : [];

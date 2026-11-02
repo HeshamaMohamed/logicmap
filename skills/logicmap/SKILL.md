@@ -1,11 +1,11 @@
 ---
 name: logicmap
-description: Decision graph of a Ruby codebase, drawn as an expandable diagram. Use to review a PR, branch or commit by the decisions it changes, or to explain how a feature (an endpoint, a GraphQL operation, a job, a method) decides what it does.
+description: Decision graph of a Ruby, TypeScript or JavaScript codebase, drawn as an expandable diagram. Use to review a PR, branch or commit by the decisions it changes, or to explain how a feature (an endpoint, a GraphQL operation, a job, a method) decides what it does.
 ---
 
 # logicmap
 
-Turns Ruby code into a **decision graph**: entry points at the top, decisions as diamonds, outcomes at the ends, every node traced to its lines. It reads any Ruby codebase through that codebase's own framework: Rails with graphql-ruby, plain Rails, or plain Ruby. The framework sits two folders above this file, symlinks resolved:
+Turns code into a **decision graph**: entry points at the top, decisions as diamonds, outcomes at the ends, every node traced to its lines. It reads a codebase through its language and framework: Ruby (Rails with graphql-ruby, plain Rails, plain Ruby), and TypeScript or JavaScript (Express, plain modules). The framework sits two folders above this file, symlinks resolved:
 
 ```bash
 ROOT="$(cd "<this skill's base directory>" && pwd -P)/../.."
@@ -17,7 +17,7 @@ A codebase's own conventions (its own guard DSL or result helpers, where its cod
 
 ## Steps
 
-1. **Plan.** Find the target codebase's root (the folder with its `Gemfile` or `*.gemspec`) and plan the run the request asks for:
+1. **Plan.** Find the target codebase's root (the folder with its `Gemfile`, `*.gemspec`, `package.json` or `tsconfig.json`) and plan the run the request asks for:
    - PR: `gh pr view N --json baseRefName,headRefName`, `git fetch origin <base> <head>`, then `--repo <root> --base origin/<base> --head origin/<head> --plan`.
    - Commit: `--repo <root> --change SHA --plan`.
    - Feature: `--repo <root> --list`, then `--entries a,b --plan` with the entry points that carry the feature. Any method works as an entry point too: `Class#method` or `Class.method`.
@@ -25,7 +25,7 @@ A codebase's own conventions (its own guard DSL or result helpers, where its cod
    Done when the plan exits 0 and the user has seen the entry points it will extract. Confirm the list with the user when it holds more than 12, or when choosing a feature's entry points took judgement.
 2. **Extract.** Rerun the planned command without `--plan`, with `--entries` when the user narrowed the list. A new unit costs about $0.05; a cached unit is free. Done when it prints `Wrote` and last-run.json says `"status": "ok"`. A run that ends in `error[CODE]`:
    - `BAD_ARGUMENT`, `UNKNOWN_ENTRY`, `NOT_A_COMMIT`, `TOO_MANY_AFFECTED`, `NO_ENTRIES`: the command needs changing; follow the printed remedy and rerun.
-   - `PRISM_MISSING`, `PYTHON_MISSING`: the machine needs a tool; the remedy names it.
+   - `PRISM_MISSING`, `TYPESCRIPT_MISSING`, `PYTHON_MISSING`: the machine needs a tool; the remedy names it.
    - `CONFIG_INVALID`: the codebase's `.logicmap.json` needs fixing; the message names the key.
    - `UNSUPPORTED_LANGUAGE`: no language pack reads this codebase yet. Tell the user which languages have a pack (the message lists them), and stop.
    - `CLAUDE_FAILED`: rerun once, then hand a second failure to the user.
