@@ -5,6 +5,12 @@ Review the decisions code makes instead of reading the code. A codebase becomes 
 out labeled, outcomes at the ends, every node traced to its source lines, drawn as
 an Excalidraw-style diagram you expand step by step.
 
+![The placeOrder mutation of the test shop, drawn in the viewer](docs/viewer.png)
+
+The `placeOrder` mutation of the test shop in `tests/fixtures/graphql-standard`. Each
+diamond is a decision. Each colored box at the side is a way the request can end. The
+panel lists every ending and the notes that a reviewer should read.
+
 It runs on any PR, commit or feature of any Ruby codebase (Rails with graphql-ruby,
 plain Rails, or plain Ruby), and grows: every case it can't handle yet fails loudly,
 is recorded in `gaps/`, and is closed with a test (see `CONTRIBUTING.md`).
@@ -17,6 +23,7 @@ lib/                     what a valid graph is, and how its exits roll up (share
 gaps/                    every case found unsupported, one file each, and how it was closed
 tests/, evals/           the deterministic layers, and Claude's answers on fixture units
 examples/                a sample .logicmap.json
+docs/                    the screenshot above
 vendor/writing-for-agents/  the rules every agent-facing text here follows
 skills/logicmap/vendor/  asd-ste100 and humanizer: the rules every reader text follows
 ```
@@ -27,17 +34,19 @@ Needs Node 22+, Python 3, a Ruby with the prism parser (Ruby 3.3+ ships it; on R
 2.7+ run `gem install prism`), and a signed-in Claude Code CLI. The index only parses
 files, so it does not need the target codebase's own Ruby or gems.
 
-As a Claude Code plugin, from a clone or the repo's git URL:
+As a Claude Code plugin:
 
 ```bash
-claude plugin marketplace add /path/to/logicmap
+claude plugin marketplace add https://github.com/HeshamaMohamed/logicmap.git
 claude plugin install logicmap@logicmap
 ```
 
-Or link the skill alone into `~/.claude/skills/`; it finds the framework through the link:
+Or clone the repo and link the skill alone into `~/.claude/skills/`. It finds the
+framework through the link:
 
 ```bash
-ln -s /path/to/logicmap/skills/logicmap ~/.claude/skills/logicmap
+git clone https://github.com/HeshamaMohamed/logicmap.git
+ln -s "$PWD/logicmap/skills/logicmap" ~/.claude/skills/logicmap
 ```
 
 Then ask Claude to review a PR's decisions, or to explain how a feature decides.
